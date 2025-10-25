@@ -1,0 +1,209 @@
+{
+  "type": "Program",
+  "name": "Program",
+  "children": [
+    {
+    "type": "CompoundStmt",
+    "name": "DeclarationList",
+    "children": [
+      {
+      "type": "FunctionDecl",
+      "name": "factorial",
+      "children": [
+        {
+        "type": "CompoundStmt",
+        "name": "ParamList",
+        "children": [
+          {
+          "type": "Param",
+          "name": "n"
+        }
+        ]
+      },
+        {
+        "type": "CompoundStmt",
+        "name": "StmtList",
+        "children": [
+          {
+          "type": "IfStmt",
+          "name": "If",
+          "children": [
+            {
+            "type": "BinaryOp",
+            "operator": "<=",
+            "children": [
+              {
+              "type": "Identifier",
+              "name": "n"
+            },
+              {
+              "type": "IntLiteral",
+              "name": "int",
+              "value": 1
+            }
+            ]
+          },
+            {
+            "type": "CompoundStmt",
+            "name": "StmtList",
+            "children": [
+              {
+              "type": "ReturnStmt",
+              "name": "Return",
+              "children": [
+                {
+                "type": "IntLiteral",
+                "name": "int",
+                "value": 1
+              }
+              ]
+            }
+            ]
+          }
+          ]
+        },
+          {
+          "type": "ReturnStmt",
+          "name": "Return",
+          "children": [
+            {
+            "type": "BinaryOp",
+            "operator": "*",
+            "children": [
+              {
+              "type": "Identifier",
+              "name": "n"
+            },
+              {
+              "type": "FuncCall",
+              "name": "factorial",
+              "children": [
+                {
+                "type": "CompoundStmt",
+                "name": "ArgList",
+                "children": [
+                  {
+                  "type": "BinaryOp",
+                  "operator": "-",
+                  "children": [
+                    {
+                    "type": "Identifier",
+                    "name": "n"
+                  },
+                    {
+                    "type": "IntLiteral",
+                    "name": "int",
+                    "value": 1
+                  }
+                  ]
+                }
+                ]
+              }
+              ]
+            }
+            ]
+          }
+          ]
+        }
+        ]
+      }
+      ]
+    },
+      {
+      "type": "FunctionDecl",
+      "name": "main",
+      "children": [
+        {
+        "type": "Param",
+        "name": "empty"
+      },
+        {
+        "type": "CompoundStmt",
+        "name": "StmtList",
+        "children": [
+          {
+          "type": "VarDecl",
+          "name": "result"
+        },
+          {
+          "type": "VarDecl",
+          "name": "k",
+          "children": [
+            {
+            "type": "IntLiteral",
+            "name": "int",
+            "value": 5
+          }
+          ]
+        },
+          {
+          "type": "ExprStmt",
+          "name": "ExprStmt",
+          "children": [
+            {
+            "type": "Assignment",
+            "name": "=",
+            "children": [
+              {
+              "type": "Identifier",
+              "name": "result"
+            },
+              {
+              "type": "FuncCall",
+              "name": "factorial",
+              "children": [
+                {
+                "type": "CompoundStmt",
+                "name": "ArgList",
+                "children": [
+                  {
+                  "type": "Identifier",
+                  "name": "k"
+                }
+                ]
+              }
+              ]
+            }
+            ]
+          }
+          ]
+        },
+          {
+          "type": "PrintStmt",
+          "name": "Printf",
+          "children": [
+            {
+            "type": "Identifier",
+            "name": "Factorial of 5 = %d"
+          },
+            {
+            "type": "CompoundStmt",
+            "name": "ArgList",
+            "children": [
+              {
+              "type": "Identifier",
+              "name": "result"
+            }
+            ]
+          }
+          ]
+        },
+          {
+          "type": "ReturnStmt",
+          "name": "Return",
+          "children": [
+            {
+            "type": "IntLiteral",
+            "name": "int",
+            "value": 0
+          }
+          ]
+        }
+        ]
+      }
+      ]
+    }
+    ]
+  }
+  ]
+}

@@ -1,0 +1,17 @@
+DEBUG: executeStatement type=PrintStmt
+DEBUG: executeStatement type=IfStmt
+DEBUG: executeStatement type=CompoundStmt
+DEBUG: executeStatement type=PrintStmt
+DEBUG: executeStatement type=ReturnStmt
+DEBUG: Hit default case for type=8 (ReturnStmt)
+DEBUG: NODE_PRINT_STMT enum=17, NODE_SCAN_STMT enum=18
+DEBUG: executeStatement type=PrintStmt
+DEBUG: executeStatement type=IfStmt
+DEBUG: executeStatement type=CompoundStmt
+DEBUG: executeStatement type=PrintStmt
+DEBUG: executeStatement type=ReturnStmt
+DEBUG: Hit default case for type=8 (ReturnStmt)
+DEBUG: NODE_PRINT_STMT enum=17, NODE_SCAN_STMT enum=18
+DEBUG: executeStatement type=ReturnStmt
+DEBUG: Hit default case for type=8 (ReturnStmt)
+DEBUG: NODE_PRINT_STMT enum=17, NODE_SCAN_STMT enum=18

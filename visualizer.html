@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scratch-Style C Code Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 30px;
+        }
+
+        .control-panel {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            border: 3px solid #667eea;
+        }
+
+        .code-input {
+            width: 100%;
+            height: 300px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            resize: vertical;
+            margin-bottom: 15px;
+        }
+
+        .button {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+
+        .load-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .control-btn {
+            padding: 12px;
+            font-size: 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+
+        .control-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        .visualization-area {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 15px;
+            border: 3px solid #764ba2;
+            min-height: 600px;
+        }
+
+        .block-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            max-height: 550px;
+            overflow-y: auto;
+        }
+
+        .block {
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            margin-left: 0px;
+        }
+
+        .block:hover {
+            transform: translateX(5px);
+        }
+
+        .block.executing {
+            animation: pulse 0.5s infinite;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+            border: 3px solid gold;
+        }
+
+        .block.executed {
+            opacity: 0.6;
+            filter: brightness(0.8);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1.05); }
+            50% { transform: scale(1.1); }
+        }
+
+        .block-function {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .block-if {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .block-while {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        .block-for {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .block-return {
+            background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+        }
+
+        .block-assignment {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            color: #333;
+        }
+
+        .block-print {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            color: #333;
+        }
+
+        .block-declaration {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            color: #333;
+        }
+
+        .nested {
+            margin-left: 30px;
+        }
+
+        .nested-2 {
+            margin-left: 60px;
+        }
+
+        .block-label {
+            display: block;
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .explanation {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            font-size: 16px;
+            line-height: 1.6;
+        }
+
+        .speed-control {
+            margin-top: 15px;
+        }
+
+        .speed-control input {
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .info {
+            background: #d1ecf1;
+            border: 2px solid #0c5460;
+            color: #0c5460;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Scratch-Style C Code Visualizer</h1>
+        
+        <div class="main-grid">
+            <!-- Left Panel: Controls -->
+            <div class="control-panel">
+                <h2 style="margin-bottom: 15px; color: #667eea;">📝 Your C Code</h2>
+                <textarea class="code-input" id="codeInput" placeholder="Paste your C code here...">int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+int main() {
+    int result;
+    result = factorial(5);
+    printf("Factorial of 5 = %d\\n", result);
+    return 0;
+}</textarea>
+                
+                <button class="button load-btn" onclick="parseCode()">🚀 Load & Visualize</button>
+                
+                <div class="controls">
+                    <button class="control-btn" onclick="reset()" id="resetBtn">⏮️</button>
+                    <button class="control-btn" onclick="previousStep()" id="prevBtn">⏪</button>
+                    <button class="control-btn" onclick="togglePlay()" id="playBtn">▶️</button>
+                    <button class="control-btn" onclick="nextStep()" id="nextBtn">⏩</button>
+                </div>
+                
+                <div class="speed-control">
+                    <label style="font-weight: bold; color: #667eea;">⚡ Animation Speed:</label>
+                    <input type="range" id="speedSlider" min="100" max="2000" value="800" step="100">
+                    <div style="text-align: center; margin-top: 5px; color: #666;" id="speedLabel">800ms</div>
+                </div>
+                
+                <div class="progress-container">
+                    <strong>Progress:</strong>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressBar">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Visualization -->
+            <div class="visualization-area">
+                <h2 style="margin-bottom: 15px; color: #764ba2;">🎨 Code Blocks Execution</h2>
+                <div class="block-container" id="blockContainer">
+                    <div class="info">
+                        👈 Enter your C code and click "Load & Visualize" to see the magic!
+                    </div>
+                </div>
+                
+                <div class="explanation" id="explanation">
+                    Welcome! This tool shows your C code as colorful blocks, just like Scratch. 
+                    Each block represents a statement in your code. Watch them light up as the code executes! 🌟
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let blocks = [];
+        let currentStep = 0;
+        let isPlaying = false;
+        let playInterval = null;
+
+        // Update speed label
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            document.getElementById('speedLabel').textContent = e.target.value + 'ms';
+        });
+
+        function parseCode() {
+            const code = document.getElementById('codeInput').value;
+            blocks = extractBlocks(code);
+            currentStep = 0;
+            renderBlocks();
+            updateUI();
+        }
+
+        function extractBlocks(code) {
+            const lines = code.split('\n');
+            const blocks = [];
+            let nestLevel = 0;
+            let inFunction = false;
+            let functionName = '';
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line || line.startsWith('//')) continue;
+
+                // Function declaration
+                if (line.match(/^(int|void|float)\s+\w+\s*\([^)]*\)\s*\{?/)) {
+                    const match = line.match(/^(int|void|float)\s+(\w+)/);
+                    functionName = match ? match[2] : 'function';
+                    inFunction = true;
+                    blocks.push({
+                        type: 'function',
+                        text: `Function: ${functionName}()`,
+                        explanation: `📦 This starts the ${functionName} function. Functions are like machines that do specific jobs!`,
+                        nestLevel: 0
+                    });
+                    if (line.includes('{')) nestLevel++;
+                    continue;
+                }
+
+                // If statement
+                if (line.match(/^if\s*\(/)) {
+                    const condition = line.match(/if\s*\(([^)]+)\)/);
+                    blocks.push({
+                        type: 'if',
+                        text: `If ${condition ? condition[1] : '...'}`,
+                        explanation: `🔀 Check if the condition is true. If yes, do what's inside!`,
+                        nestLevel: nestLevel
+                    });
+                    if (line.includes('{')) nestLevel++;
+                    continue;
+                }
+
+                // Else statement
+                if (line.match(/^else/)) {
+                    blocks.push({
+                        type: 'if',
+                        text: 'Else',
+                        explanation: `🔄 If the condition above was false, do this instead!`,
+                        nestLevel: nestLevel - 1
+                    });
+                    if (line.includes('{')) nestLevel++;
+                    continue;
+                }
+
+                // While loop
+                if (line.match(/^while\s*\(/)) {
+                    const condition = line.match(/while\s*\(([^)]+)\)/);
+                    blocks.push({
+                        type: 'while',
+                        text: `While ${condition ? condition[1] : '...'}`,
+                        explanation: `🔄 Keep repeating as long as this condition is true!`,
+                        nestLevel: nestLevel
+                    });
+                    if (line.includes('{')) nestLevel++;
+                    continue;
+                }
+
+                // For loop
+                if (line.match(/^for\s*\(/)) {
+                    blocks.push({
+                        type: 'for',
+                        text: 'For loop',
+                        explanation: `🔁 Repeat a specific number of times!`,
+                        nestLevel: nestLevel
+                    });
+                    if (line.includes('{')) nestLevel++;
+                    continue;
+                }
+
+                // Return statement
+                if (line.match(/^return/)) {
+                    const value = line.match(/return\s+([^;]+)/);
+                    blocks.push({
+                        type: 'return',
+                        text: `Return ${value ? value[1] : ''}`,
+                        explanation: `↩️ Send this value back and exit the function!`,
+                        nestLevel: nestLevel
+                    });
+                    continue;
+                }
+
+                // Variable declaration
+                if (line.match(/^(int|float|char)\s+\w+/)) {
+                    const match = line.match(/^(int|float|char)\s+(\w+)/);
+                    blocks.push({
+                        type: 'declaration',
+                        text: `Create variable: ${match ? match[2] : 'var'}`,
+                        explanation: `📝 Make a new box to store a value!`,
+                        nestLevel: nestLevel
+                    });
+                    continue;
+                }
+
+                // Assignment
+                if (line.match(/^\w+\s*=/)) {
+                    const match = line.match(/^(\w+)\s*=\s*([^;]+)/);
+                    blocks.push({
+                        type: 'assignment',
+                        text: `${match ? match[1] : 'var'} = ${match ? match[2] : '...'}`,
+                        explanation: `✏️ Put a value into the variable box!`,
+                        nestLevel: nestLevel
+                    });
+                    continue;
+                }
+
+                // Printf
+                if (line.match(/printf/)) {
+                    blocks.push({
+                        type: 'print',
+                        text: 'Print to screen',
+                        explanation: `🖨️ Show something on the screen!`,
+                        nestLevel: nestLevel
+                    });
+                    continue;
+                }
+
+                // Closing brace
+                if (line === '}') {
+                    nestLevel--;
+                    continue;
+                }
+            }
+
+            return blocks;
+        }
+
+        function renderBlocks() {
+            const container = document.getElementById('blockContainer');
+            container.innerHTML = '';
+
+            blocks.forEach((block, index) => {
+                const blockDiv = document.createElement('div');
+                blockDiv.className = `block block-${block.type}`;
+                blockDiv.id = `block-${index}`;
+                
+                if (block.nestLevel === 1) blockDiv.classList.add('nested');
+                if (block.nestLevel >= 2) blockDiv.classList.add('nested-2');
+                
+                blockDiv.innerHTML = `
+                    ${block.text}
+                    <span class="block-label">${getBlockIcon(block.type)} ${block.type}</span>
+                `;
+                
+                blockDiv.onclick = () => {
+                    currentStep = index;
+                    updateUI();
+                };
+                
+                container.appendChild(blockDiv);
+            });
+        }
+
+        function getBlockIcon(type) {
+            const icons = {
+                'function': '📦',
+                'if': '🔀',
+                'while': '🔄',
+                'for': '🔁',
+                'return': '↩️',
+                'assignment': '✏️',
+                'print': '🖨️',
+                'declaration': '📝'
+            };
+            return icons[type] || '❓';
+        }
+
+        function updateUI() {
+            // Update blocks
+            blocks.forEach((block, index) => {
+                const blockDiv = document.getElementById(`block-${index}`);
+                if (!blockDiv) return;
+                
+                blockDiv.classList.remove('executing', 'executed');
+                
+                if (index === currentStep) {
+                    blockDiv.classList.add('executing');
+                } else if (index < currentStep) {
+                    blockDiv.classList.add('executed');
+                }
+            });
+
+            // Update explanation
+            if (blocks[currentStep]) {
+                document.getElementById('explanation').innerHTML = blocks[currentStep].explanation;
+            }
+
+            // Update progress
+            const progress = blocks.length > 0 ? ((currentStep + 1) / blocks.length * 100) : 0;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressBar').textContent = Math.round(progress) + '%';
+
+            // Update buttons
+            document.getElementById('prevBtn').disabled = currentStep === 0;
+            document.getElementById('nextBtn').disabled = currentStep >= blocks.length - 1;
+            document.getElementById('resetBtn').disabled = currentStep === 0;
+
+            // Scroll to current block
+            const currentBlock = document.getElementById(`block-${currentStep}`);
+            if (currentBlock) {
+                currentBlock.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function reset() {
+            currentStep = 0;
+            isPlaying = false;
+            clearInterval(playInterval);
+            document.getElementById('playBtn').textContent = '▶️';
+            updateUI();
+        }
+
+        function previousStep() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateUI();
+            }
+        }
+
+        function nextStep() {
+            if (currentStep < blocks.length - 1) {
+                currentStep++;
+                updateUI();
+            } else {
+                isPlaying = false;
+                clearInterval(playInterval);
+                document.getElementById('playBtn').textContent = '▶️';
+            }
+        }
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const playBtn = document.getElementById('playBtn');
+            
+            if (isPlaying) {
+                playBtn.textContent = '⏸️';
+                const speed = parseInt(document.getElementById('speedSlider').value);
+                playInterval = setInterval(() => {
+                    if (currentStep < blocks.length - 1) {
+                        nextStep();
+                    } else {
+                        togglePlay();
+                    }
+                }, speed);
+            } else {
+                playBtn.textContent = '▶️';
+                clearInterval(playInterval);
+            }
+        }
+
+        // Initialize
+        parseCode();
+    </script>
+</body>
+</html>
