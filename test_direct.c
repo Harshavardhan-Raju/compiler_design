@@ -1,3 +1,4 @@
+/*
 int factorial(int n) {
     if (n <= 1) {
         return 1;
@@ -7,8 +8,21 @@ int factorial(int n) {
 
 int main() {
     int result;
-    int k = 5;
+    int k ;
+    printf("Enter a number:");
+    scanf("%d",&k);
     result = factorial(k);
     printf("Factorial of 5 = %d", result);
     return 0;
+}
+*/
+
+int main(){
+int a  = 5;
+int b ;
+int c;
+
+c = a +"hello";
+printf("%d",c)
+
 }

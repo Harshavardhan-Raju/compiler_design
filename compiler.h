@@ -128,13 +128,40 @@ void handlePrintf(const char *format, ASTNode **args, int arg_count, VarList *va
 void handleScanf(const char *format, ASTNode **args, int arg_count, VarList **vars);
 
 // Enhanced Error Reporting Functions
+// ----------------------------- ERROR HANDLING ------------------------------
+
+const char *type_to_string(DataType type);
+
+/**
+ * Report general compiler error (old GCC style, with line and column)
+ */
 void report_error(int line, int col, const char *error_type, const char *message);
-void suggest_fix(const char *suggestion);
+
+/**
+ * Report undeclared variable (with line and column)
+ */
 void report_undeclared_variable(const char *var_name, int line, int col);
+
+/**
+ * Report undeclared function (with line and column)
+ */
 void report_undeclared_function(const char *func_name, int line, int col);
+
+/**
+ * Report redeclaration (with line, column, and previous line)
+ */
 void report_redeclaration(const char *name, int line, int col, int prev_line, int is_function);
+
+/**
+ * Report type mismatch in binary operations
+ */
 void report_type_mismatch(const char *op, DataType left, DataType right, int line, int col);
+
+/**
+ * Report argument mismatch for function calls
+ */
 void report_argument_mismatch(const char *func_name, int expected, int provided, int line, int col);
+
 
 // Error handling
 void yyerror(const char *s);

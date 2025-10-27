@@ -14,47 +14,8 @@ SymbolTable *current_scope = NULL;
 SymbolTable *global_scope = NULL;
 int error_count = 0;
 
-// Enhanced error reporting
 void yyerror(const char *s) {
-    fprintf(stderr, "\n");
-    fprintf(stderr, "test_debug.c:%d: error: %s", line_num, s);
-    
-    // Provide context-specific suggestions
-    if (strstr(s, "syntax error")) {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "note: common causes of syntax errors:\n");
-        fprintf(stderr, "      - missing semicolon ';' at end of statement\n");
-        fprintf(stderr, "      - missing closing brace '}'\n");
-        fprintf(stderr, "      - missing parenthesis ')'\n");
-        fprintf(stderr, "      - typo in keyword or identifier\n");
-        fprintf(stderr, "\n");
-        fprintf(stderr, "Suggested fix:\n");
-        fprintf(stderr, "    Check the line above (line %d) for missing semicolon\n", line_num - 1);
-        fprintf(stderr, "    Example: x = 5;  // add semicolon here\n");
-    }
-    fprintf(stderr, "\n");
-    error_count++;
-}
-
-// Specific error messages for common mistakes
-void missing_semicolon_error(int line) {
-    fprintf(stderr, "\n");
-    fprintf(stderr, "test_debug.c:%d: error: expected ';' after statement\n", line);
-    fprintf(stderr, "note: statements must end with a semicolon\n");
-    fprintf(stderr, "Suggested fix:\n");
-    fprintf(stderr, "    Add semicolon at end of line %d:\n", line);
-    fprintf(stderr, "    x = 5;  // like this\n");
-    fprintf(stderr, "\n");
-    error_count++;
-}
-
-void unexpected_token_error(const char *token, const char *expected) {
-    fprintf(stderr, "\n");
-    fprintf(stderr, "test_debug.c:%d: error: unexpected token '%s'\n", line_num, token);
-    fprintf(stderr, "note: expected '%s' before '%s'\n", expected, token);
-    fprintf(stderr, "Suggested fix:\n");
-    fprintf(stderr, "    Add '%s' before this line\n", expected);
-    fprintf(stderr, "\n");
+    fprintf(stderr, "%s:%d: error: %s\n", current_filename, line_num, s);
     error_count++;
 }
 %}
@@ -93,7 +54,6 @@ void unexpected_token_error(const char *token, const char *expected) {
 %right NOT UMINUS
 %left LPAREN RPAREN
 
-/* Error recovery tokens */
 %error-verbose
 
 %%
@@ -135,13 +95,8 @@ var_declaration:
         free($2);
     }
     | type_specifier ID error {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "test_debug.c:%d: error: expected ';' after variable declaration\n", line_num);
-        fprintf(stderr, "note: variable declarations must end with semicolon\n");
-        fprintf(stderr, "Suggested fix:\n");
-        fprintf(stderr, "    %s %s;  // add semicolon\n", 
-                $1 == TYPE_INT ? "int" : $1 == TYPE_FLOAT ? "float" : "void", $2);
-        fprintf(stderr, "\n");
+        fprintf(stderr, "%s:%d: error: expected ';' after variable declaration\n", 
+                current_filename, line_num);
         error_count++;
         yyerrok;
         $$ = createNode(NODE_VAR_DECL, $2);
@@ -149,13 +104,8 @@ var_declaration:
         free($2);
     }
     | type_specifier ID ASSIGN expr error {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "test_debug.c:%d: error: expected ';' after initialization\n", line_num);
-        fprintf(stderr, "note: initialized variable declarations must end with semicolon\n");
-        fprintf(stderr, "Suggested fix:\n");
-        fprintf(stderr, "    %s %s = <value>;  // add semicolon at end\n",
-                $1 == TYPE_INT ? "int" : $1 == TYPE_FLOAT ? "float" : "void", $2);
-        fprintf(stderr, "\n");
+        fprintf(stderr, "%s:%d: error: expected ';' after initialization\n", 
+                current_filename, line_num);
         error_count++;
         yyerrok;
         $$ = createNode(NODE_VAR_DECL, $2);
@@ -246,14 +196,8 @@ expr_stmt:
         addChild($$, $1);
     }
     | expr error {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "test_debug.c:%d: error: expected ';' after expression\n", line_num);
-        fprintf(stderr, "note: statements must end with a semicolon\n");
-        fprintf(stderr, "Suggested fix:\n");
-        fprintf(stderr, "    Add semicolon at the end:\n");
-        fprintf(stderr, "    x = 5;  // like this\n");
-        fprintf(stderr, "    printf(\"...\");  // or this\n");
-        fprintf(stderr, "\n");
+        fprintf(stderr, "%s:%d: error: expected ';' after expression\n", 
+                current_filename, line_num);
         error_count++;
         yyerrok;
         $$ = createNode(NODE_EXPR_STMT, "ExprStmt");
@@ -302,12 +246,8 @@ return_stmt:
         addChild($$, $2);
     }
     | RETURN expr error {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "test_debug.c:%d: error: expected ';' after return statement\n", line_num);
-        fprintf(stderr, "note: return statements must end with semicolon\n");
-        fprintf(stderr, "Suggested fix:\n");
-        fprintf(stderr, "    return value;  // add semicolon\n");
-        fprintf(stderr, "\n");
+        fprintf(stderr, "%s:%d: error: expected ';' after return statement\n", 
+                current_filename, line_num);
         error_count++;
         yyerrok;
         $$ = createNode(NODE_RETURN_STMT, "Return");
@@ -330,12 +270,8 @@ print_stmt:
         free($3);
     }
     | PRINTF LPAREN STRING COMMA arg_list RPAREN error {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "test_debug.c:%d: error: expected ';' after printf statement\n", line_num);
-        fprintf(stderr, "note: printf calls must end with semicolon\n");
-        fprintf(stderr, "Suggested fix:\n");
-        fprintf(stderr, "    printf(\"...\", args);  // add semicolon\n");
-        fprintf(stderr, "\n");
+        fprintf(stderr, "%s:%d: error: expected ';' after printf statement\n", 
+                current_filename, line_num);
         error_count++;
         yyerrok;
         $$ = createNode(NODE_PRINT_STMT, "Printf");
@@ -345,12 +281,8 @@ print_stmt:
         free($3);
     }
     | PRINTF LPAREN STRING RPAREN error {
-        fprintf(stderr, "\n");
-        fprintf(stderr, "test_debug.c:%d: error: expected ';' after printf statement\n", line_num);
-        fprintf(stderr, "note: printf calls must end with semicolon\n");
-        fprintf(stderr, "Suggested fix:\n");
-        fprintf(stderr, "    printf(\"...\");  // add semicolon\n");
-        fprintf(stderr, "\n");
+        fprintf(stderr, "%s:%d: error: expected ';' after printf statement\n", 
+                current_filename, line_num);
         error_count++;
         yyerrok;
         $$ = createNode(NODE_PRINT_STMT, "Printf");

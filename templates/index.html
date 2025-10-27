@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyCC - C Compiler Web Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .editor-panel, .output-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .input-info {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #92400e;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: start;
+            gap: 10px;
+        }
+
+        .input-info-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        #code-editor {
+            min-height: 300px;
+            line-height: 1.5;
+        }
+
+        #input-box {
+            min-height: 100px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-run {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-run:hover {
+            background: #059669;
+        }
+
+        .btn-visualize {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-visualize:hover {
+            background: #2563eb;
+        }
+
+        .btn-analyze {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-analyze:hover {
+            background: #d97706;
+        }
+
+        .btn-clear {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #dc2626;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 15px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #f3f4f6;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .output-box {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .output-box.error {
+            color: #fca5a5;
+        }
+
+        .output-box.success {
+            color: #86efac;
+        }
+
+        .ast-container {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .ast-node {
+            margin: 5px 0;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ast-node:hover {
+            background: #f1f5f9;
+            border-color: #667eea;
+        }
+
+        .ast-node-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .ast-node-toggle {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: #667eea;
+        }
+
+        .ast-node-type {
+            color: #3b82f6;
+        }
+
+        .ast-node-name {
+            color: #059669;
+            margin-left: 8px;
+        }
+
+        .ast-children {
+            margin-left: 30px;
+            margin-top: 8px;
+            border-left: 2px solid #e2e8f0;
+            padding-left: 15px;
+        }
+
+        .ast-children.collapsed {
+            display: none;
+        }
+
+        .flow-diagram {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .flow-node {
+            padding: 12px 20px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 2px solid #667eea;
+            background: white;
+            position: relative;
+        }
+
+        .flow-node.function {
+            background: #dbeafe;
+            border-color: #3b82f6;
+        }
+
+        .flow-node.if {
+            background: #fef3c7;
+            border-color: #f59e0b;
+        }
+
+        .flow-node.loop {
+            background: #ddd6fe;
+            border-color: #8b5cf6;
+        }
+
+        .flow-node.return {
+            background: #dcfce7;
+            border-color: #10b981;
+        }
+
+        .flow-indent {
+            margin-left: 30px;
+            padding-left: 15px;
+            border-left: 3px solid #e2e8f0;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #94a3b8;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>MyCC Compiler Interface</h1>
+                <div class="subtitle">Write, Compile, and Visualize C Code</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Panel: Code Editor -->
+            <div class="editor-panel">
+                <div class="panel-title">Code Editor</div>
+                <textarea id="code-editor" placeholder="Write your C code here...&#x0a;&#x0a;Example:&#x0a;int factorial(int n) {&#x0a;    if (n <= 1) return 1;&#x0a;    return n * factorial(n - 1);&#x0a;}&#x0a;&#x0a;int main() {&#x0a;    int num;&#x0a;    printf(&quot;Enter a number: &quot;);&#x0a;    scanf(&quot;%d&quot;, &amp;num);&#x0a;    printf(&quot;Factorial: %d\n&quot;, factorial(num));&#x0a;    return 0;&#x0a;}"></textarea>
+
+                <div class="panel-title">
+                    Program Input (stdin)
+                </div>
+                
+                <div class="input-info">
+                    <span class="input-info-icon">💡</span>
+                    <div>
+                        <strong>Important:</strong> This is a web interface, so input cannot be entered interactively during program execution.
+                        <br>Please provide ALL scanf inputs here BEFORE clicking Run. Separate multiple inputs with newlines or spaces.
+                    </div>
+                </div>
+                
+                <textarea id="input-box" placeholder="Enter ALL inputs here before running...&#x0a;&#x0a;For single input: 5&#x0a;&#x0a;For multiple inputs:&#x0a;5&#x0a;10&#x0a;15&#x0a;&#x0a;Or space-separated: 5 10 15"></textarea>
+
+                <div class="button-group">
+                    <button class="btn-run" onclick="runCode()">
+                        <span>▶</span> Run
+                    </button>
+                    <button class="btn-visualize" onclick="visualizeAST()">
+                        <span>📊</span> Visualize AST
+                    </button>
+                    <button class="btn-analyze" onclick="analyzeCode()">
+                        <span>🔍</span> Analyze
+                    </button>
+                    <button class="btn-clear" onclick="clearAll()">
+                        <span>🗑</span> Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Output -->
+            <div class="output-panel">
+                <div class="panel-title">Output</div>
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('console', this)">Console</button>
+                    <button class="tab" onclick="switchTab('visualization', this)">AST Tree</button>
+                    <button class="tab" onclick="switchTab('flow', this)">Control Flow</button>
+                    <button class="tab" onclick="switchTab('analysis', this)">Analysis</button>
+                    <button class="tab" onclick="switchTab('errors', this)">Errors</button>
+                </div>
+
+                <div id="console" class="tab-content active">
+                    <div id="console-output" class="output-box">
+                        <div class="empty-state">Run your code to see output here</div>
+                    </div>
+                </div>
+
+                <div id="visualization" class="tab-content">
+                    <div id="ast-output" class="ast-container">
+                        <div class="empty-state">Click "Visualize AST" to see the abstract syntax tree</div>
+                    </div>
+                </div>
+
+                <div id="flow" class="tab-content">
+                    <div id="flow-output" class="ast-container">
+                        <div class="empty-state">Control flow will appear here after visualization</div>
+                    </div>
+                </div>
+
+                <div id="analysis" class="tab-content">
+                    <div id="analysis-output" class="output-box">
+                        <div class="empty-state">Click "Analyze" to perform semantic analysis</div>
+                    </div>
+                </div>
+
+                <div id="errors" class="tab-content">
+                    <div id="error-output" class="output-box error">
+                        <div class="empty-state">Errors will appear here</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function switchTab(tabName, clickedTab) {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.remove('active'));
+            
+            // Find and activate the clicked tab
+            if (clickedTab) {
+                clickedTab.classList.add('active');
+            } else {
+                // If called programmatically, find the tab by matching text
+                tabs.forEach(tab => {
+                    if (tab.textContent.toLowerCase().includes(tabName.toLowerCase())) {
+                        tab.classList.add('active');
+                    }
+                });
+            }
+            
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        // Clear all
+        function clearAll() {
+            if (confirm('Clear all code and output?')) {
+                document.getElementById('code-editor').value = '';
+                document.getElementById('input-box').value = '';
+                document.getElementById('console-output').innerHTML = '<div class="empty-state">Run your code to see output here</div>';
+                document.getElementById('ast-output').innerHTML = '<div class="empty-state">Click "Visualize AST" to see the abstract syntax tree</div>';
+                document.getElementById('flow-output').innerHTML = '<div class="empty-state">Control flow will appear here after visualization</div>';
+                document.getElementById('analysis-output').innerHTML = '<div class="empty-state">Click "Analyze" to perform semantic analysis</div>';
+                document.getElementById('error-output').innerHTML = '<div class="empty-state">Errors will appear here</div>';
+            }
+        }
+
+        // Disable/enable buttons
+        function setButtonsEnabled(enabled) {
+            const buttons = document.querySelectorAll('button:not(.tab)');
+            buttons.forEach(btn => btn.disabled = !enabled);
+        }
+
+        // Run code
+        async function runCode() {
+            const code = document.getElementById('code-editor').value.trim();
+            const input = document.getElementById('input-box').value;
+            
+            if (!code) {
+                alert('Please enter some code first!');
+                return;
+            }
+
+            // Check if code contains scanf but no input provided
+            if (code.includes('scanf') && !input.trim()) {
+                const proceed = confirm(
+                    '⚠️ Your code uses scanf() but no input is provided.\n\n' +
+                    'The program may use default values (0) or hang waiting for input.\n\n' +
+                    'Do you want to continue anyway?'
+                );
+                if (!proceed) return;
+            }
+
+            const consoleOutput = document.getElementById('console-output');
+            const errorOutput = document.getElementById('error-output');
+            
+            consoleOutput.innerHTML = '<div class="loading"></div> Running...';
+            errorOutput.innerHTML = '';
+            
+            setButtonsEnabled(false);
+
+            try {
+                const response = await fetch('/compile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, input })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    consoleOutput.className = 'output-box success';
+                    consoleOutput.textContent = result.output || '(No output)';
+                    errorOutput.innerHTML = '<div class="empty-state">No errors</div>';
+                } else {
+                    consoleOutput.className = 'output-box';
+                    consoleOutput.textContent = result.output || '(No output)';
+                    errorOutput.className = 'output-box error';
+                    errorOutput.textContent = result.errors || 'Unknown error';
+                    
+                    // Switch to errors tab
+                    const errorTab = document.querySelectorAll('.tab')[4]; // 5th tab (errors)
+                    switchTab('errors', errorTab);
+                }
+            } catch (error) {
+                consoleOutput.className = 'output-box error';
+                consoleOutput.textContent = `Network error: ${error.message}`;
+                errorOutput.textContent = `Failed to connect to server: ${error.message}`;
+            } finally {
+                setButtonsEnabled(true);
+            }
+        }
+
+        // Visualize AST
+        async function visualizeAST() {
+            const code = document.getElementById('code-editor').value.trim();
+            
+            if (!code) {
+                alert('Please enter some code first!');
+                return;
+            }
+
+            const astOutput = document.getElementById('ast-output');
+            const flowOutput = document.getElementById('flow-output');
+            const errorOutput = document.getElementById('error-output');
+            
+            astOutput.innerHTML = '<div class="loading"></div> Generating AST...';
+            flowOutput.innerHTML = '<div class="loading"></div> Analyzing control flow...';
+            
+            setButtonsEnabled(false);
+
+            try {
+                const response = await fetch('/visualize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+
+                const result = await response.json();
+                
+                if (result.success && result.ast) {
+                    renderAST(result.ast);
+                    renderControlFlow(result.ast);
+                    errorOutput.innerHTML = '<div class="empty-state">No errors</div>';
+                    
+                    // Switch to visualization tab
+                    const vizTab = document.querySelectorAll('.tab')[1]; // 2nd tab (visualization)
+                    switchTab('visualization', vizTab);
+                } else {
+                    astOutput.innerHTML = `<div class="empty-state">Failed to generate AST</div>`;
+                    flowOutput.innerHTML = `<div class="empty-state">Failed to generate control flow</div>`;
+                    errorOutput.className = 'output-box error';
+                    errorOutput.textContent = result.error || 'Unknown error';
+                    
+                    // Switch to errors tab
+                    const errorTab = document.querySelectorAll('.tab')[4]; // 5th tab (errors)
+                    switchTab('errors', errorTab);
+                }
+            } catch (error) {
+                astOutput.innerHTML = `<div class="empty-state">Network error: ${error.message}</div>`;
+                flowOutput.innerHTML = `<div class="empty-state">Network error</div>`;
+                errorOutput.textContent = `Failed to connect to server: ${error.message}`;
+            } finally {
+                setButtonsEnabled(true);
+            }
+        }
+
+        // Render AST tree
+        function renderAST(node, container = null) {
+            if (!container) {
+                container = document.getElementById('ast-output');
+                container.innerHTML = '';
+            }
+
+            const nodeDiv = document.createElement('div');
+            nodeDiv.className = 'ast-node';
+            
+            const header = document.createElement('div');
+            header.className = 'ast-node-header';
+            
+            const hasChildren = node.children && node.children.length > 0;
+            
+            const toggle = document.createElement('span');
+            toggle.className = 'ast-node-toggle';
+            toggle.textContent = hasChildren ? '▼' : '•';
+            
+            const type = document.createElement('span');
+            type.className = 'ast-node-type';
+            type.textContent = node.type || 'Node';
+            
+            const name = document.createElement('span');
+            name.className = 'ast-node-name';
+            if (node.name) {
+                name.textContent = `"${node.name}"`;
+            }
+            
+            header.appendChild(toggle);
+            header.appendChild(type);
+            header.appendChild(name);
+            nodeDiv.appendChild(header);
+            
+            if (hasChildren) {
+                const childrenDiv = document.createElement('div');
+                childrenDiv.className = 'ast-children';
+                
+                node.children.forEach(child => {
+                    renderAST(child, childrenDiv);
+                });
+                
+                nodeDiv.appendChild(childrenDiv);
+                
+                // Toggle collapse
+                header.onclick = (e) => {
+                    e.stopPropagation();
+                    childrenDiv.classList.toggle('collapsed');
+                    toggle.textContent = childrenDiv.classList.contains('collapsed') ? '▶' : '▼';
+                };
+            }
+            
+            container.appendChild(nodeDiv);
+        }
+
+        // Render control flow
+        function renderControlFlow(ast) {
+            const flowOutput = document.getElementById('flow-output');
+            flowOutput.innerHTML = '';
+            
+            const flowDiv = document.createElement('div');
+            flowDiv.className = 'flow-diagram';
+            
+            extractControlFlow(ast, flowDiv, 0);
+            
+            flowOutput.appendChild(flowDiv);
+        }
+
+        function extractControlFlow(node, container, depth) {
+            if (!node) return;
+            
+            const indent = depth > 0 ? 'flow-indent' : '';
+            
+            // Check node type
+            if (node.type === 'FunctionDecl') {
+                const flowNode = document.createElement('div');
+                flowNode.className = `flow-node function ${indent}`;
+                flowNode.innerHTML = `<strong>Function:</strong> ${node.name || 'anonymous'}`;
+                container.appendChild(flowNode);
+                
+                if (node.children) {
+                    node.children.forEach(child => extractControlFlow(child, container, depth + 1));
+                }
+            } else if (node.type === 'IfStmt') {
+                const flowNode = document.createElement('div');
+                flowNode.className = `flow-node if ${indent}`;
+                flowNode.innerHTML = `<strong>If Statement</strong> ${node.name ? `(${node.name})` : ''}`;
+                container.appendChild(flowNode);
+                
+                if (node.children) {
+                    node.children.forEach(child => extractControlFlow(child, container, depth + 1));
+                }
+            } else if (node.type === 'WhileStmt' || node.type === 'ForStmt') {
+                const flowNode = document.createElement('div');
+                flowNode.className = `flow-node loop ${indent}`;
+                flowNode.innerHTML = `<strong>${node.type === 'WhileStmt' ? 'While' : 'For'} Loop</strong> ${node.name ? `(${node.name})` : ''}`;
+                container.appendChild(flowNode);
+                
+                if (node.children) {
+                    node.children.forEach(child => extractControlFlow(child, container, depth + 1));
+                }
+            } else if (node.type === 'ReturnStmt') {
+                const flowNode = document.createElement('div');
+                flowNode.className = `flow-node return ${indent}`;
+                flowNode.innerHTML = `<strong>Return Statement</strong>`;
+                container.appendChild(flowNode);
+            } else if (node.children) {
+                node.children.forEach(child => extractControlFlow(child, container, depth));
+            }
+        }
+
+        // Analyze code
+        async function analyzeCode() {
+            const code = document.getElementById('code-editor').value.trim();
+            
+            if (!code) {
+                alert('Please enter some code first!');
+                return;
+            }
+
+            const analysisOutput = document.getElementById('analysis-output');
+            const errorOutput = document.getElementById('error-output');
+            
+            analysisOutput.innerHTML = '<div class="loading"></div> Analyzing...';
+            
+            setButtonsEnabled(false);
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    analysisOutput.className = 'output-box success';
+                    analysisOutput.textContent = result.output || 'Analysis completed successfully!';
+                    errorOutput.innerHTML = '<div class="empty-state">No errors</div>';
+                    
+                    // Switch to analysis tab
+                    const analysisTab = document.querySelectorAll('.tab')[3]; // 4th tab (analysis)
+                    switchTab('analysis', analysisTab);
+                } else {
+                    analysisOutput.className = 'output-box error';
+                    analysisOutput.textContent = result.output || 'Analysis failed';
+                    errorOutput.className = 'output-box error';
+                    errorOutput.textContent = result.output || 'Analysis failed';
+                    
+                    // Switch to errors tab
+                    const errorTab = document.querySelectorAll('.tab')[4]; // 5th tab (errors)
+                    switchTab('errors', errorTab);
+                }
+            } catch (error) {
+                analysisOutput.className = 'output-box error';
+                analysisOutput.textContent = `Network error: ${error.message}`;
+                errorOutput.textContent = `Failed to connect to server: ${error.message}`;
+            } finally {
+                setButtonsEnabled(true);
+            }
+        }
+
+        // Keyboard shortcuts
+        document.getElementById('code-editor').addEventListener('keydown', function(e) {
+            // Ctrl+Enter to run
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                runCode();
+            }
+            
+            // Tab for indentation
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                const value = this.value;
+                
+                this.value = value.substring(0, start) + '    ' + value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+
+        // Auto-save to localStorage (optional)
+        const editor = document.getElementById('code-editor');
+        const inputBox = document.getElementById('input-box');
+        
+        // Load saved code on page load
+        window.addEventListener('load', () => {
+            const savedCode = localStorage.getItem('mycc_code');
+            const savedInput = localStorage.getItem('mycc_input');
+            if (savedCode) editor.value = savedCode;
+            if (savedInput) inputBox.value = savedInput;
+        });
+        
+        // Save code periodically
+        let saveTimeout;
+        editor.addEventListener('input', () => {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                localStorage.setItem('mycc_code', editor.value);
+            }, 1000);
+        });
+        
+        inputBox.addEventListener('input', () => {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                localStorage.setItem('mycc_input', inputBox.value);
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
