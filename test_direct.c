@@ -22,7 +22,7 @@ int a  = 5;
 int b ;
 int c;
 
-c = a +"hello";
-printf("%d",c)
+c = a ;
+printf("%d",c);
 
 }

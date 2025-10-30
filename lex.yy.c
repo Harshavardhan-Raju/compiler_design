@@ -1,5 +1,5 @@
 
-#line 3 "lex.yy.c"
+#line 2 "lex.yy.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -541,8 +541,8 @@ char *processEscapes(const char *str) {
     *out = '\0';
     return buffer;
 }
+#line 544 "lex.yy.c"
 #line 545 "lex.yy.c"
-#line 546 "lex.yy.c"
 
 #define INITIAL 0
 
@@ -762,7 +762,7 @@ YY_DECL
 #line 43 "scanner.l"
 
 
-#line 766 "lex.yy.c"
+#line 765 "lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -1035,7 +1035,7 @@ YY_RULE_SETUP
 #line 95 "scanner.l"
 ECHO;
 	YY_BREAK
-#line 1039 "lex.yy.c"
+#line 1038 "lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 

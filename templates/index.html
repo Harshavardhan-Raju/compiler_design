@@ -680,35 +680,15 @@
                         Source Code
                     </div>
                 </div>
+                <!-- Code input: user can paste code here and click Visualize -->
+                <textarea id="code-input" placeholder="Paste your C code here..." style="width:100%; min-height:160px; padding:10px; border-radius:8px; background:#0b1220; color:#e2e8f0; border:1px solid #213043; font-family: 'Fira Code', monospace; font-size:13px; margin-bottom:10px;"></textarea>
+                <div style="display:flex; gap:10px; margin-bottom:12px;">
+                    <button class="btn btn-primary" onclick="visualizeCode()">🔍 Visualize</button>
+                    <button class="btn btn-secondary" onclick="loadExampleToEditor()">📄 Load Example</button>
+                </div>
+
                 <div class="code-viewer" id="code-viewer">
-                    <div class="code-line" data-line="1">
-                        <span class="line-number">1</span>
-                        <span class="line-content">int main() {</span>
-                    </div>
-                    <div class="code-line" data-line="2">
-                        <span class="line-number">2</span>
-                        <span class="line-content">  int x = 5;</span>
-                    </div>
-                    <div class="code-line" data-line="3">
-                        <span class="line-number">3</span>
-                        <span class="line-content">  if (x > 3) {</span>
-                    </div>
-                    <div class="code-line" data-line="4">
-                        <span class="line-number">4</span>
-                        <span class="line-content">    x = x * 2;</span>
-                    </div>
-                    <div class="code-line" data-line="5">
-                        <span class="line-number">5</span>
-                        <span class="line-content">  }</span>
-                    </div>
-                    <div class="code-line" data-line="6">
-                        <span class="line-number">6</span>
-                        <span class="line-content">  return x;</span>
-                    </div>
-                    <div class="code-line" data-line="7">
-                        <span class="line-number">7</span>
-                        <span class="line-content">}</span>
-                    </div>
+                    <!-- Rendered code lines will be loaded here by CodeSynchronizer -->
                 </div>
             </div>
 
@@ -1228,17 +1208,45 @@
                 return;
             }
 
-            // Load data
-            await loadExecutionData();
-            
-            resetExecution();
+            const codeInputEl = document.getElementById('code-input');
+            const code = codeInputEl ? codeInputEl.value : '';
+
+            if (code && code.trim()) {
+                try {
+                    const resp = await fetch('/get_trace', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: code, input: '' })
+                    });
+
+                    const data = await resp.json();
+                    if (!resp.ok) {
+                        alert(data.error || 'Failed to visualize code');
+                        return;
+                    }
+
+                    state.traceData = data.trace || [];
+                    state.totalSteps = state.traceData.length || 0;
+                    codeSynchronizer.loadCode(data.code || code);
+                    safeRenderAST(data.ast);
+                    safeRenderCFG(data.cfg);
+                    renderExecutionBlocks(state.traceData);
+                    document.getElementById('stat-total').textContent = state.totalSteps;
+                    document.getElementById('stat-blocks').textContent = state.totalSteps;
+                    resetExecution();
+                } catch (err) {
+                    alert('Server error while generating visualization.');
+                    return;
+                }
+            } else {
+                await loadExecutionData();
+                resetExecution();
+            }
+
             state.running = true;
             state.startTime = Date.now();
             startTimer();
-
-            // Start recording if enabled
             gifExporter.startRecording();
-
             await continueExecution();
         }
 
@@ -1349,6 +1357,113 @@
         }
 
         // ==================== DATA LOADING ====================
+        
+        // ==================== USER INTERACTIONS: EDITOR -> SERVER ====================
+        async function visualizeCode() {
+            const code = document.getElementById('code-input').value;
+            if (!code || !code.trim()) {
+                alert('Please enter C source code to visualize.');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/get_trace', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code, input: '' })
+                });
+
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    console.error('Visualization error', data);
+                    alert(data.error || 'Failed to visualize code');
+                    return;
+                }
+
+                // Update state and UI
+                state.traceData = data.trace || [];
+                state.totalSteps = state.traceData.length || 0;
+
+                // Load code into the code viewer
+                codeSynchronizer.loadCode(data.code || code);
+
+                // Render AST and CFG (use safe renderers)
+                safeRenderAST(data.ast);
+                safeRenderCFG(data.cfg);
+
+                // Render execution blocks and stats
+                renderExecutionBlocks(state.traceData);
+                document.getElementById('stat-total').textContent = state.totalSteps;
+                document.getElementById('stat-blocks').textContent = state.totalSteps;
+
+                // Reset execution state ready for play
+                resetExecution();
+
+            } catch (err) {
+                console.error('Server error:', err);
+                alert('Server error while generating visualization. See console for details.');
+            }
+        }
+
+        async function runFromEditor() {
+            const code = document.getElementById('code-input').value;
+            if (!code || !code.trim()) {
+                alert('Please enter code to run.');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/compile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code, input: '' })
+                });
+
+                const res = await resp.json();
+                if (!res.success) {
+                    alert('Runtime/Error:\n' + (res.errors || res.output || JSON.stringify(res)));
+                } else {
+                    alert('Program output:\n' + (res.output || '<no output>'));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Server error while running code.');
+            }
+        }
+
+        function loadExampleToEditor() {
+            const example = `int main() {\n    int x = 5;\n    if (x > 3) {\n        x = x * 2;\n    }\n    printf("%d", x);\n    return 0;\n}`;
+            document.getElementById('code-input').value = example;
+            visualizeCode();
+        }
+
+        function safeRenderAST(ast) {
+            try {
+                if (!ast || Object.keys(ast).length === 0) {
+                    astVisualizer.render({ type: 'Program', name: 'Program', children: [] });
+                } else {
+                    astVisualizer.render(ast);
+                }
+            } catch (e) {
+                console.warn('AST render failed, falling back to empty AST', e);
+                astVisualizer.render({ type: 'Program', name: 'Program', children: [] });
+            }
+        }
+
+        function safeRenderCFG(cfg) {
+            try {
+                if (!cfg || !cfg.nodes) {
+                    cfgVisualizer.render({ nodes: [], edges: [] });
+                } else {
+                    cfgVisualizer.render(cfg);
+                }
+            } catch (e) {
+                console.warn('CFG render failed, falling back to empty CFG', e);
+                cfgVisualizer.render({ nodes: [], edges: [] });
+            }
+        }
+
         async function loadExecutionData() {
             try {
                 // Fetch from Flask backend

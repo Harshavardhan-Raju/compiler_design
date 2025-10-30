@@ -411,39 +411,49 @@ def get_trace():
         if not is_valid:
             return jsonify({'error': error_msg}), 400
         
-        # Run compiler to get AST
-        ast_result = run_mycc_command(['-a'], code)
-        
-        if ast_result['returncode'] != 0:
-            return jsonify({'error': ast_result['stderr']}), 400
-        
-        # Parse AST
+        # Run compiler to get AST (fallback gracefully if unavailable)
+        ast_data = {}
+        cfg_data = {'nodes': [], 'edges': []}
         try:
-            ast_data = json.loads(ast_result['stdout']) if ast_result['stdout'] else {}
-        except json.JSONDecodeError:
+            ast_result = run_mycc_command(['-a'], code)
+            if ast_result['returncode'] == 0 and ast_result.get('stdout'):
+                try:
+                    ast_data = json.loads(ast_result['stdout'])
+                except json.JSONDecodeError:
+                    ast_data = {}
+        except Exception:
             ast_data = {}
         
-        # Build CFG from AST
-        cfg_data = build_cfg_data(ast_data)
+        # Build CFG from AST (or placeholder if AST missing)
+        try:
+            cfg_data = build_cfg_data(ast_data)
+        except Exception:
+            cfg_data = {'nodes': [], 'edges': []}
         
-        # Run code and extract trace
-        exec_result = run_mycc_command(['-i'], code, user_input)
-        trace_data = extract_execution_trace(exec_result['stdout'], code)
+        # Run code and extract trace (fallback to heuristic on failure)
+        exec_stdout = ''
+        exec_time = 0
+        try:
+            exec_result = run_mycc_command(['-i'], code, user_input)
+            exec_stdout = exec_result.get('stdout', '')
+            exec_time = exec_result.get('execution_time', 0)
+        except Exception:
+            exec_stdout = ''
+            exec_time = 0
+        
+        trace_data = extract_execution_trace(exec_stdout, code)
         
         return jsonify({
             'code': code,
             'trace': trace_data,
             'ast': build_ast_hierarchy(ast_data),
             'cfg': cfg_data,
-            'output': exec_result['stdout'],
-            'execution_time': exec_result['execution_time']
+            'output': exec_stdout,
+            'execution_time': exec_time
         })
         
     except Exception as e:
         return jsonify({'error': f'Server error: {str(e)}'}), 500
-
-
-@app.route('/visualize', methods=['POST'])
 def visualize_ast():
     """
     Generate AST visualization (legacy endpoint - kept for compatibility)
