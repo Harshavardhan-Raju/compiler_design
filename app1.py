@@ -98,50 +98,127 @@ def run_mycc_command(args: List[str], code: str, stdin_input: str = "") -> Dict[
 
 
 def build_ast_hierarchy(ast_json: Dict) -> Dict:
+    """Normalize mycc -a AST to a {type,name,children} tree for D3.
+    Tries to map common fields like children/body/then/else/left/right into children.
     """
-    Convert flat AST JSON to hierarchical format for D3.js visualization
-    """
-    # This is a placeholder - adjust based on your mycc's actual AST format
     if not ast_json:
         return {}
-    
-    return ast_json
+
+    def norm(node: Any) -> Dict[str, Any]:
+        if node is None:
+            return {}
+        if isinstance(node, (str, int, float)):
+            return { 'type': 'Literal', 'name': str(node), 'children': [] }
+
+        t = node.get('type') or node.get('node') or 'Node'
+        name = node.get('name') or node.get('value') or node.get('op') or t
+
+        children: List[Dict[str, Any]] = []
+        # Explicit children
+        if isinstance(node.get('children'), list):
+            children.extend(norm(c) for c in node['children'] if c is not None)
+
+        # Common structural fields
+        for key in ['body', 'stmts', 'declarations', 'args', 'params']:
+            val = node.get(key)
+            if isinstance(val, list):
+                children.extend(norm(c) for c in val if c is not None)
+            elif isinstance(val, dict):
+                children.append(norm(val))
+
+        # Control-flow typical fields
+        mapping = [('cond', 'Condition'), ('then', 'Then'), ('else', 'Else'),
+                   ('init', 'Init'), ('update', 'Update'), ('left', 'Left'), ('right', 'Right')]
+        for key, alias in mapping:
+            if key in node and node[key] is not None:
+                child = norm(node[key])
+                if child:
+                    # Tag alias into child name when useful
+                    if child.get('name') and child['name'] != alias:
+                        pass
+                    children.append(child)
+
+        return {
+            'type': t,
+            'name': name,
+            'children': children
+        }
+
+    return norm(ast_json)
 
 
 def build_cfg_data(ast_json: Dict) -> Dict[str, Any]:
+    """Build a simple CFG from the normalized AST.
+    Produces nodes: [{id,label,type}], edges: [{from,to,type?}] with edge types for true/false/back edges.
     """
-    Build Control Flow Graph data from AST
-    Returns format compatible with D3.js CFG visualizer
-    """
-    # This is a simplified example - implement based on your AST structure
-    nodes = []
-    edges = []
-    node_counter = 0
-    
-    def process_node(node, parent_id=None):
-        nonlocal node_counter
-        
-        node_id = f"node{node_counter}"
-        node_counter += 1
-        
-        node_type = node.get('type', 'Unknown')
-        label = node.get('name', node_type)
-        
-        nodes.append({'id': node_id, 'label': label, 'type': node_type})
-        
-        if parent_id:
-            edges.append({'from': parent_id, 'to': node_id})
-        
-        # Process children
-        children = node.get('children', [])
-        for child in children:
-            process_node(child, node_id)
-        
-        return node_id
-    
-    if ast_json:
-        process_node(ast_json)
-    
+    if not ast_json:
+        return {'nodes': [], 'edges': []}
+
+    ast_root = build_ast_hierarchy(ast_json)
+
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+    counter = 1
+
+    def add_node(label: str, ntype: str) -> str:
+        nonlocal counter
+        nid = f"node{counter}"
+        counter += 1
+        nodes.append({'id': nid, 'label': label, 'type': ntype})
+        return nid
+
+    def seq_connect(seq: List[str]):
+        for i in range(len(seq) - 1):
+            edges.append({'from': seq[i], 'to': seq[i+1]})
+
+    def build_from(node: Dict[str, Any]) -> List[str]:
+        t = (node.get('type') or '').lower()
+        name = node.get('name') or node.get('type')
+
+        # Leaf-like statements
+        if t in ['decl', 'declaration', 'assign', 'assignment', 'print', 'return', 'call']:
+            nid = add_node(name, node.get('type', 'Stmt'))
+            return [nid]
+
+        # If/While/For
+        if t in ['if', 'ifstmt']:
+            cond_id = add_node(f"if {name}", 'If')
+            ch = node.get('children', [])
+            then_seq = build_from(ch[0]) if len(ch) > 0 else []
+            else_seq = build_from(ch[1]) if len(ch) > 1 else []
+            # edges
+            if then_seq:
+                edges.append({'from': cond_id, 'to': then_seq[0], 'type': 'true-branch'})
+            if else_seq:
+                edges.append({'from': cond_id, 'to': else_seq[0], 'type': 'false-branch'})
+            return [cond_id] + then_seq + else_seq
+
+        if t in ['while', 'for', 'loop']:
+            cond_id = add_node(f"{node.get('type')} {name}", 'Loop')
+            ch = node.get('children', [])
+            body_seq = build_from(ch[0]) if len(ch) > 0 else []
+            if body_seq:
+                edges.append({'from': cond_id, 'to': body_seq[0], 'type': 'true-branch'})
+                # back-edge to cond
+                edges.append({'from': body_seq[-1], 'to': cond_id, 'type': 'back-edge'})
+            # false to exit will be handled by surrounding sequence connection
+            return [cond_id] + body_seq
+
+        # Generic block/compound: flatten children
+        seq_ids: List[str] = []
+        for ch in node.get('children', []) or []:
+            seq_ids.extend(build_from(ch))
+        seq_connect(seq_ids)
+        return seq_ids or [add_node(name, node.get('type', 'Node'))]
+
+    entry_id = add_node('Start', 'Entry')
+    seq_ids = build_from(ast_root)
+    if seq_ids:
+        edges.append({'from': entry_id, 'to': seq_ids[0]})
+    exit_id = add_node('End', 'Exit')
+    last = (seq_ids[-1] if seq_ids else entry_id)
+    edges.append({'from': last, 'to': exit_id})
+
     return {'nodes': nodes, 'edges': edges}
 
 
@@ -186,6 +263,7 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
         s = src.strip()
         if not s:
             continue
+        # Declarations with initialization
         if s.startswith('int') and '=' in s:
             try:
                 name_part = s.replace('int', '').replace(';', '')
@@ -195,6 +273,45 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
                     'step': len(trace) + 1,
                     'type': 'execute',
                     'block': 'declaration',
+                    'content': s,
+                    'line': i,
+                    'variables': dict(variables)
+                })
+            except Exception:
+                pass
+        # Plain declarations without init
+        elif s.startswith('int') and '=' not in s and s.endswith(';'):
+            try:
+                names = s.replace('int', '').replace(';', '').split(',')
+                for name in [n.strip() for n in names if n.strip()]:
+                    variables.setdefault(name, 0)
+                trace.append({
+                    'step': len(trace) + 1,
+                    'type': 'execute',
+                    'block': 'declaration',
+                    'content': s,
+                    'line': i,
+                    'variables': dict(variables)
+                })
+            except Exception:
+                pass
+        # Assignments like c = a;
+        elif '=' in s and s.endswith(';') and not s.startswith('//'):
+            try:
+                lhs, rhs = [p.strip().strip(';') for p in s.split('=', 1)]
+                # Try to evaluate simple identifiers/ints
+                val = None
+                if rhs.isdigit():
+                    val = int(rhs)
+                elif rhs in variables:
+                    val = variables[rhs]
+                # If form like printf, skip in this branch
+                if lhs and val is not None:
+                    variables[lhs] = val
+                trace.append({
+                    'step': len(trace) + 1,
+                    'type': 'execute',
+                    'block': 'assignment',
                     'content': s,
                     'line': i,
                     'variables': dict(variables)
@@ -211,6 +328,27 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
                 'line': i,
                 'variables': dict(variables)
             })
+        # printf simple detection
+        elif s.startswith('printf'):
+            trace.append({
+                'step': len(trace) + 1,
+                'type': 'execute',
+                'block': 'print',
+                'content': s,
+                'line': i,
+                'variables': dict(variables)
+            })
+    # Add a final return/exit step if we had any steps
+    if trace:
+        last_line = len(lines)
+        trace.append({
+            'step': len(trace) + 1,
+            'type': 'exit',
+            'block': 'function',
+            'name': 'main',
+            'line': last_line,
+            'variables': dict(variables)
+        })
     return trace
 
 

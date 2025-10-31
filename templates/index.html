@@ -263,6 +263,20 @@
             font-weight: 700;
         }
 
+        /* Program Output */
+        .output-box {
+            background: #0f172a;
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            color: #e2e8f0;
+            max-height: 160px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
         /* Execution Blocks with Timing */
         .execution-block {
             background: rgba(255, 255, 255, 0.05);
@@ -283,6 +297,11 @@
         .execution-block.active {
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3), 0 8px 24px rgba(0, 0, 0, 0.4);
             animation: blockPulse 1.5s ease-in-out infinite;
+        }
+
+        .execution-block.error {
+            border-color: #ef4444;
+            animation: errorBlink 1s ease-in-out infinite;
         }
 
         @keyframes blockPulse {
@@ -747,6 +766,17 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Program Output -->
+            <div class="panel-section">
+                <div class="section-header">
+                    <div class="section-title">
+                        <span class="section-icon">🖨</span>
+                        Program Output
+                    </div>
+                </div>
+                <div id="program-output" class="output-box">(no output)</div>
+            </div>
         </aside>
 
         <!-- Main Canvas -->
@@ -1208,16 +1238,10 @@
                     renderExecutionBlocks(state.traceData);
                     document.getElementById('stat-total').textContent = state.totalSteps;
                     document.getElementById('stat-blocks').textContent = state.totalSteps;
-                    if (Array.isArray(data.errors) && data.errors.length) {
-                        applyErrors(data.errors);
-                        // Do not autoplay when there are syntax errors
-                        setButtonsDisabled(false);
-                        state.loading = false;
-                        alert('Syntax errors detected. Fix them and try again.');
-                        return;
-                    } else {
-                        clearErrors();
-                    }
+                    setProgramOutput(data.output || '');
+                    // Store errors; do not mark immediately – mark when step is reached
+                    state.errors = Array.isArray(data.errors) ? data.errors : [];
+                    clearErrors();
                     resetExecution();
                 } catch (err) {
                     setButtonsDisabled(false);
@@ -1255,6 +1279,9 @@
                 state.running = false;
                 gifExporter.stopRecording();
                 clearInterval(state.timerInterval);
+                // Clear highlights at the end
+                document.querySelectorAll('.execution-block.active').forEach(el => el.classList.remove('active'));
+                codeSynchronizer.clearHighlight();
             }
         }
 
@@ -1284,6 +1311,17 @@
             // Highlight CFG node
             if (step.cfgNode) {
                 cfgVisualizer.highlightNode(step.cfgNode);
+            }
+
+            // If this step's line has a syntax error, mark it red now
+            if (step.line && Array.isArray(state.errors)) {
+                const hasErr = state.errors.some(e => Number(e.line) === Number(step.line));
+                if (hasErr) {
+                    const lineEl = document.querySelector(`.code-line[data-line="${step.line}"]`);
+                    if (lineEl) lineEl.classList.add('error');
+                    const block = document.querySelector(`[data-step="${stepIndex}"]`);
+                    if (block) block.classList.add('error');
+                }
             }
         }
 
@@ -1340,6 +1378,8 @@
             
             codeSynchronizer.clearHighlight();
             variableTracker.clear();
+            clearErrors();
+            setProgramOutput('');
             
             document.querySelectorAll('.execution-block.active').forEach(el => {
                 el.classList.remove('active');
@@ -1396,12 +1436,12 @@
                 // Reset execution state ready for play
                 resetExecution();
 
-                // Apply syntax errors
-                if (Array.isArray(data.errors) && data.errors.length) {
-                    applyErrors(data.errors);
-                } else {
-                    clearErrors();
-                }
+                // Store errors for step-time highlighting
+                state.errors = Array.isArray(data.errors) ? data.errors : [];
+                clearErrors();
+
+                // Show program output (if any)
+                setProgramOutput(data.output || '');
 
             } catch (err) {
                 console.error('Server error:', err);
@@ -1428,6 +1468,7 @@
                 });
 
                 const res = await resp.json();
+                setProgramOutput((Array.isArray(res.errors) ? res.errors.map(e => `Line ${e.line}: ${e.message}`).join('\n') : (res.output || '')) || '');
                 if (!res.success) {
                     if (Array.isArray(res.errors)) {
                         applyErrors(res.errors);
@@ -1455,27 +1496,58 @@
         function safeRenderAST(ast) {
             try {
                 if (!ast || Object.keys(ast).length === 0) {
-                    astVisualizer.render({ type: 'Program', name: 'Program', children: [] });
+                    const emptyAst = { type: 'Program', name: 'Program', children: [] };
+                    astVisualizer.lastData = emptyAst;
+                    astVisualizer.render(emptyAst);
                 } else {
+                    astVisualizer.lastData = ast;
                     astVisualizer.render(ast);
                 }
             } catch (e) {
                 console.warn('AST render failed, falling back to empty AST', e);
-                astVisualizer.render({ type: 'Program', name: 'Program', children: [] });
+                const emptyAst = { type: 'Program', name: 'Program', children: [] };
+                astVisualizer.lastData = emptyAst;
+                astVisualizer.render(emptyAst);
             }
         }
 
         function safeRenderCFG(cfg) {
             try {
                 if (!cfg || !cfg.nodes) {
-                    cfgVisualizer.render({ nodes: [], edges: [] });
+                    const emptyCfg = { nodes: [], edges: [] };
+                    cfgVisualizer.lastData = emptyCfg;
+                    cfgVisualizer.render(emptyCfg);
                 } else {
+                    cfgVisualizer.lastData = cfg;
                     cfgVisualizer.render(cfg);
                 }
             } catch (e) {
                 console.warn('CFG render failed, falling back to empty CFG', e);
-                cfgVisualizer.render({ nodes: [], edges: [] });
+                const emptyCfg = { nodes: [], edges: [] };
+                cfgVisualizer.lastData = emptyCfg;
+                cfgVisualizer.render(emptyCfg);
             }
+        }
+
+        // ==================== UI HELPERS (Buttons & Errors) ====================
+        function setButtonsDisabled(disabled) {
+            const runBtn = document.getElementById('btn-run');
+            const vizBtn = document.getElementById('btn-visualize');
+            if (runBtn) runBtn.disabled = disabled;
+            if (vizBtn) vizBtn.disabled = disabled;
+        }
+
+        function applyErrors(errors) {
+            clearErrors();
+            if (!Array.isArray(errors)) return;
+            errors.forEach(err => {
+                const lineEl = document.querySelector(`.code-line[data-line="${err.line}"]`);
+                if (lineEl) lineEl.classList.add('error');
+            });
+        }
+
+        function clearErrors() {
+            document.querySelectorAll('.code-line.error').forEach(el => el.classList.remove('error'));
         }
 
         async function loadExecutionData() {
@@ -1714,6 +1786,12 @@
         }
 
         // ==================== UI HELPERS ====================
+        function setProgramOutput(text) {
+            const box = document.getElementById('program-output');
+            if (!box) return;
+            const value = (text || '').toString();
+            box.textContent = value.length ? value : '(no output)';
+        }
         function switchVisualization(view) {
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
