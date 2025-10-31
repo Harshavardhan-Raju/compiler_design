@@ -11,7 +11,10 @@ app = Flask(__name__)
 
 # ==================== CONFIGURATION ====================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MYCC_PATH = os.path.join(BASE_DIR, "mycc")
+# Prefer Windows binary if present
+MYCC_EXE = os.path.join(BASE_DIR, "mycc.exe")
+MYCC_BIN = os.path.join(BASE_DIR, "mycc")
+MYCC_PATH = MYCC_EXE if os.path.exists(MYCC_EXE) else MYCC_BIN
 TIMEOUT = 10  # Timeout in seconds
 MAX_CODE_SIZE = 50000  # Max code size in bytes
 
@@ -145,63 +148,92 @@ def build_cfg_data(ast_json: Dict) -> Dict[str, Any]:
 def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
     """
     Extract execution trace from program output
-    This should be enhanced based on your mycc's trace output format
+    Preferred: parse structured TRACE JSON lines emitted by interpreter.
+    Fallback: heuristic based on code when no TRACE found.
     """
-    trace = []
+    trace: List[Dict[str, Any]] = []
+    if not output:
+        return trace
+    
+    # First pass: try to parse structured TRACE JSON lines
+    for raw in output.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        # Allow optional 'TRACE ' prefix
+        if line.upper().startswith('TRACE '):
+            line = line[6:].strip()
+        try:
+            obj = json.loads(line)
+            if isinstance(obj, dict) and (
+                'line' in obj or 'type' in obj or 'block' in obj
+            ):
+                trace.append(obj)
+        except json.JSONDecodeError:
+            continue
+    
+    if trace:
+        # Ensure step numbering if not provided
+        for i, step in enumerate(trace, start=1):
+            if 'step' not in step:
+                step['step'] = i
+        return trace
+    
+    # Fallback heuristic (very light) if no TRACE was parsed
     lines = code.split('\n')
-    
-    # Example trace generation - customize based on your compiler's output
-    trace.append({
-        'step': 1,
-        'type': 'enter',
-        'block': 'function',
-        'name': 'main',
-        'line': 1,
-        'timing': 0.0,
-        'variables': {},
-        'cfgNode': 'node1'
-    })
-    
-    # Parse variable assignments from code (simple heuristic)
-    variables = {}
-    for i, line in enumerate(lines, 1):
-        line = line.strip()
-        
-        # Detect variable declarations
-        if 'int' in line and '=' in line:
-            parts = line.replace('int', '').replace(';', '').split('=')
-            if len(parts) == 2:
-                var_name = parts[0].strip()
-                var_value = parts[1].strip()
-                try:
-                    variables[var_name] = int(var_value)
-                    trace.append({
-                        'step': len(trace) + 1,
-                        'type': 'execute',
-                        'block': 'declaration',
-                        'content': line,
-                        'line': i,
-                        'timing': 0.1,
-                        'variables': dict(variables),
-                        'cfgNode': f'node{len(trace)}'
-                    })
-                except ValueError:
-                    pass
-        
-        # Detect if statements
-        elif 'if' in line:
+    variables: Dict[str, Any] = {}
+    for i, src in enumerate(lines, 1):
+        s = src.strip()
+        if not s:
+            continue
+        if s.startswith('int') and '=' in s:
+            try:
+                name_part = s.replace('int', '').replace(';', '')
+                var_name, var_value = [p.strip() for p in name_part.split('=', 1)]
+                variables[var_name] = int(var_value)
+                trace.append({
+                    'step': len(trace) + 1,
+                    'type': 'execute',
+                    'block': 'declaration',
+                    'content': s,
+                    'line': i,
+                    'variables': dict(variables)
+                })
+            except Exception:
+                pass
+        elif s.startswith('if'):
+            cond = s
             trace.append({
                 'step': len(trace) + 1,
                 'type': 'enter',
                 'block': 'if',
-                'condition': line.replace('if', '').replace('(', '').replace(')', '').replace('{', '').strip(),
+                'condition': cond,
                 'line': i,
-                'timing': 0.2,
-                'variables': dict(variables),
-                'cfgNode': f'node{len(trace)}'
+                'variables': dict(variables)
             })
-    
     return trace
+
+
+def parse_syntax_errors(stderr: str) -> List[Dict[str, Any]]:
+    """Parse syntax errors emitted as JSON objects: { "line": n, "message": "..." } per line."""
+    errors: List[Dict[str, Any]] = []
+    if not stderr:
+        return errors
+    for raw in stderr.splitlines():
+        s = raw.strip()
+        if not s:
+            continue
+        # Allow non-JSON noise; only collect valid JSON with required keys
+        try:
+            obj = json.loads(s)
+            if isinstance(obj, dict) and 'line' in obj and 'message' in obj:
+                errors.append({
+                    'line': int(obj['line']),
+                    'message': str(obj['message'])
+                })
+        except Exception:
+            continue
+    return errors
 
 
 # ==================== ROUTES ====================
@@ -236,12 +268,13 @@ def compile_code():
         
         # Run mycc with -i flag for interpretation
         result = run_mycc_command(['-i'], code, user_input)
+        syntax_errors = parse_syntax_errors(result.get('stderr', ''))
         
         return jsonify({
-            'success': result['returncode'] == 0 and not result['timeout'],
-            'output': result['stdout'],
-            'errors': result['stderr'],
-            'execution_time': result['execution_time']
+            'success': result['returncode'] == 0 and not result['timeout'] and not syntax_errors,
+            'output': result.get('stdout', ''),
+            'errors': syntax_errors if syntax_errors else result.get('stderr', ''),
+            'execution_time': result.get('execution_time', 0)
         })
         
     except Exception as e:
@@ -432,16 +465,20 @@ def get_trace():
         
         # Run code and extract trace (fallback to heuristic on failure)
         exec_stdout = ''
+        exec_stderr = ''
         exec_time = 0
         try:
             exec_result = run_mycc_command(['-i'], code, user_input)
             exec_stdout = exec_result.get('stdout', '')
+            exec_stderr = exec_result.get('stderr', '')
             exec_time = exec_result.get('execution_time', 0)
         except Exception:
             exec_stdout = ''
+            exec_stderr = ''
             exec_time = 0
         
         trace_data = extract_execution_trace(exec_stdout, code)
+        syntax_errors = parse_syntax_errors(exec_stderr)
         
         return jsonify({
             'code': code,
@@ -449,7 +486,8 @@ def get_trace():
             'ast': build_ast_hierarchy(ast_data),
             'cfg': cfg_data,
             'output': exec_stdout,
-            'execution_time': exec_time
+            'execution_time': exec_time,
+            'errors': syntax_errors
         })
         
     except Exception as e:

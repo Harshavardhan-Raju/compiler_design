@@ -62,6 +62,7 @@
             font-weight: 800;
             background: linear-gradient(135deg, #667eea 0%, #f093fb 100%);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
@@ -189,6 +190,13 @@
             animation: blink 1s infinite;
         }
 
+        .code-line.error {
+            background: rgba(239, 68, 68, 0.15);
+            border-left: 3px solid #ef4444;
+            padding-left: 5px;
+            animation: errorBlink 1s ease-in-out infinite;
+        }
+
         @keyframes codeHighlight {
             0%, 100% { background: rgba(102, 126, 234, 0.2); }
             50% { background: rgba(102, 126, 234, 0.4); }
@@ -197,6 +205,11 @@
         @keyframes blink {
             0%, 50%, 100% { opacity: 1; }
             25%, 75% { opacity: 0.3; }
+        }
+
+        @keyframes errorBlink {
+            0%, 100% { background: rgba(239, 68, 68, 0.15); }
+            50% { background: rgba(239, 68, 68, 0.35); }
         }
 
         /* Variable Tracker */
@@ -655,7 +668,7 @@
                     <div class="recording-dot"></div>
                     <span>Recording...</span>
                 </div>
-                <button class="btn btn-success" onclick="runExecution()">
+                <button id="btn-run" class="btn btn-success" onclick="runExecution()">
                     <span>▶</span> Run
                 </button>
                 <button class="btn btn-warning" onclick="pauseExecution()">
@@ -682,8 +695,9 @@
                 </div>
                 <!-- Code input: user can paste code here and click Visualize -->
                 <textarea id="code-input" placeholder="Paste your C code here..." style="width:100%; min-height:160px; padding:10px; border-radius:8px; background:#0b1220; color:#e2e8f0; border:1px solid #213043; font-family: 'Fira Code', monospace; font-size:13px; margin-bottom:10px;"></textarea>
+                <input id="stdin-input" type="text" placeholder="Program input (stdin) e.g. 5 10" style="width:100%; padding:10px; border-radius:8px; background:#0b1220; color:#e2e8f0; border:1px solid #213043; font-family: 'Fira Code', monospace; font-size:13px; margin-bottom:10px;" />
                 <div style="display:flex; gap:10px; margin-bottom:12px;">
-                    <button class="btn btn-primary" onclick="visualizeCode()">🔍 Visualize</button>
+                    <button id="btn-visualize" class="btn btn-primary" onclick="visualizeCode()">🔍 Visualize</button>
                     <button class="btn btn-secondary" onclick="loadExampleToEditor()">📄 Load Example</button>
                 </div>
 
@@ -741,54 +755,7 @@
                 <div class="progress-fill" id="progress-fill"></div>
             </div>
 
-            <div style="margin-top: 30px;" id="execution-container">
-                <!-- Example blocks -->
-                <div class="execution-block block-type-function">
-                    <div class="block-header">
-                        <div class="block-info">
-                            <span class="block-icon">🔧</span>
-                            <span class="block-title">Function: main()</span>
-                        </div>
-                        <div class="block-timing">
-                            <span>⏱</span>
-                            <span>0.0ms</span>
-                        </div>
-                    </div>
-                    <div class="block-content">Entry point of program</div>
-                </div>
-
-                <div class="nested-blocks">
-                    <div class="execution-block block-type-if">
-                        <div class="block-header">
-                            <div class="block-info">
-                                <span class="block-icon">❓</span>
-                                <span class="block-title">If Statement</span>
-                            </div>
-                            <div class="block-timing">
-                                <span>⏱</span>
-                                <span>0.5ms</span>
-                            </div>
-                        </div>
-                        <div class="block-content">Condition: x > 3</div>
-                    </div>
-
-                    <div class="nested-blocks">
-                        <div class="execution-block block-type-print">
-                            <div class="block-header">
-                                <div class="block-info">
-                                    <span class="block-icon">✏️</span>
-                                    <span class="block-title">Assignment</span>
-                                </div>
-                                <div class="block-timing">
-                                    <span>⏱</span>
-                                    <span>0.2ms</span>
-                                </div>
-                            </div>
-                            <div class="block-content">x = x * 2</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div style="margin-top: 30px;" id="execution-container"></div>
         </main>
 
         <!-- Right Sidebar: AST/CFG -->
@@ -878,7 +845,8 @@
             activeBlocks: new Set(),
             timerInterval: null,
             frames: [], // For GIF export
-            isRecording: false
+            isRecording: false,
+            errors: []
         };
 
         // ==================== MODULE 1: VARIABLE TRACKER ====================
@@ -1201,6 +1169,7 @@
         // ==================== EXECUTION ENGINE ====================
         async function runExecution() {
             if (state.running && !state.paused) return;
+            if (state.loading) return;
 
             if (state.paused) {
                 state.paused = false;
@@ -1210,17 +1179,23 @@
 
             const codeInputEl = document.getElementById('code-input');
             const code = codeInputEl ? codeInputEl.value : '';
+            const stdinEl = document.getElementById('stdin-input');
+            const stdinValue = stdinEl ? stdinEl.value : '';
 
             if (code && code.trim()) {
                 try {
+                    state.loading = true;
+                    setButtonsDisabled(true);
                     const resp = await fetch('/get_trace', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code: code, input: '' })
+                        body: JSON.stringify({ code: code, input: stdinValue })
                     });
 
                     const data = await resp.json();
                     if (!resp.ok) {
+                        setButtonsDisabled(false);
+                        state.loading = false;
                         alert(data.error || 'Failed to visualize code');
                         return;
                     }
@@ -1233,10 +1208,25 @@
                     renderExecutionBlocks(state.traceData);
                     document.getElementById('stat-total').textContent = state.totalSteps;
                     document.getElementById('stat-blocks').textContent = state.totalSteps;
+                    if (Array.isArray(data.errors) && data.errors.length) {
+                        applyErrors(data.errors);
+                        // Do not autoplay when there are syntax errors
+                        setButtonsDisabled(false);
+                        state.loading = false;
+                        alert('Syntax errors detected. Fix them and try again.');
+                        return;
+                    } else {
+                        clearErrors();
+                    }
                     resetExecution();
                 } catch (err) {
+                    setButtonsDisabled(false);
+                    state.loading = false;
                     alert('Server error while generating visualization.');
                     return;
+                } finally {
+                    setButtonsDisabled(false);
+                    state.loading = false;
                 }
             } else {
                 await loadExecutionData();
@@ -1361,21 +1351,27 @@
         // ==================== USER INTERACTIONS: EDITOR -> SERVER ====================
         async function visualizeCode() {
             const code = document.getElementById('code-input').value;
+            const stdinValue = (document.getElementById('stdin-input') || {}).value || '';
             if (!code || !code.trim()) {
                 alert('Please enter C source code to visualize.');
                 return;
             }
 
             try {
+                if (state.loading) return;
+                state.loading = true;
+                setButtonsDisabled(true);
                 const resp = await fetch('/get_trace', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: code, input: '' })
+                    body: JSON.stringify({ code: code, input: stdinValue })
                 });
 
                 const data = await resp.json();
 
                 if (!resp.ok) {
+                    setButtonsDisabled(false);
+                    state.loading = false;
                     console.error('Visualization error', data);
                     alert(data.error || 'Failed to visualize code');
                     return;
@@ -1400,14 +1396,25 @@
                 // Reset execution state ready for play
                 resetExecution();
 
+                // Apply syntax errors
+                if (Array.isArray(data.errors) && data.errors.length) {
+                    applyErrors(data.errors);
+                } else {
+                    clearErrors();
+                }
+
             } catch (err) {
                 console.error('Server error:', err);
                 alert('Server error while generating visualization. See console for details.');
+            } finally {
+                setButtonsDisabled(false);
+                state.loading = false;
             }
         }
 
         async function runFromEditor() {
             const code = document.getElementById('code-input').value;
+            const stdinValue = (document.getElementById('stdin-input') || {}).value || '';
             if (!code || !code.trim()) {
                 alert('Please enter code to run.');
                 return;
@@ -1417,13 +1424,20 @@
                 const resp = await fetch('/compile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code: code, input: '' })
+                    body: JSON.stringify({ code: code, input: stdinValue })
                 });
 
                 const res = await resp.json();
                 if (!res.success) {
-                    alert('Runtime/Error:\n' + (res.errors || res.output || JSON.stringify(res)));
+                    if (Array.isArray(res.errors)) {
+                        applyErrors(res.errors);
+                        const msg = res.errors.map(e => `Line ${e.line}: ${e.message}`).join('\n');
+                        alert('Syntax Errors:\n' + msg);
+                    } else {
+                        alert('Runtime/Error:\n' + (res.errors || res.output || JSON.stringify(res)));
+                    }
                 } else {
+                    clearErrors();
                     alert('Program output:\n' + (res.output || '<no output>'));
                 }
             } catch (err) {
