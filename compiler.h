@@ -116,11 +116,18 @@ DataType getExpressionType(ASTNode *node, SymbolTable *table);
 
 // Interpreter Functions
 void interpretProgram(ASTNode *node);
+void interpretProgramWithTrace(ASTNode *node, FILE *trace_fp);
 void executeStatement(ASTNode *node, VarList **vars);
+void executeStatementWithTrace(ASTNode *node, VarList **vars);
 int evaluateIntExpression(ASTNode *node, VarList *vars);
 float evaluateFloatExpression(ASTNode *node, VarList *vars);
 Variable *findVariable(VarList *vars, const char *name);
 void setVariable(VarList **vars, const char *name, DataType type, int int_val, float float_val);
+
+// Trace Functions
+void enable_trace_output(FILE *fp);
+void disable_trace_output(void);
+void emit_trace(const char *type, const char *block, int line, const char *content, VarList *vars);
 
 // Helper functions
 char *processEscapes(const char *str);

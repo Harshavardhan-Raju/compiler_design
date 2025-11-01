@@ -11,17 +11,31 @@ extern int error_count;
 extern char *current_filename;
 
 void printUsage(const char *prog_name) {
-    printf("Usage: %s [option] <filename>\n", prog_name);
+    printf("Usage: %s [options] <source-file>\n", prog_name);
     printf("Options:\n");
-    printf("  -i <file>    Interpret the program\n");
-    printf("  -a <file>    Output AST in JSON format\n");
-    printf("  -s <file>    Perform semantic analysis\n");
-    printf("  -p <file>    Print AST in tree format\n");
-    printf("  -h           Show this help message\n");
+    printf("  -p    Parse and display AST in tree format\n");
+    printf("  -a    Generate and display AST in JSON format\n");
+    printf("  -s    Perform semantic analysis\n");
+    printf("  -i    Interpret and execute\n");
+    printf("  -t    Trace execution (with JSON output)\n");
+    printf("  -h    Display this help message\n");
 }
 
 int main(int argc, char **argv) {
     if (argc < 2) {
+        printUsage(argv[0]);
+        return 1;
+    }
+    
+    // If a single argument starting with '-' is provided, it's an option
+    // without the required filename (or it's -h). Handle -h and report
+    // missing filename for other options to avoid treating options as files.
+    if (argc == 2 && argv[1][0] == '-') {
+        if (strcmp(argv[1], "-h") == 0) {
+            printUsage(argv[0]);
+            return 0;
+        }
+        fprintf(stderr, "Error: Option '%s' requires a filename\n", argv[1]);
         printUsage(argv[0]);
         return 1;
     }
@@ -42,6 +56,9 @@ int main(int argc, char **argv) {
             filename = argv[2];
         } else if (strcmp(argv[1], "-p") == 0) {
             mode = 'p';
+            filename = argv[2];
+        } else if (strcmp(argv[1], "-t") == 0) {
+            mode = 't';
             filename = argv[2];
         } else if (strcmp(argv[1], "-h") == 0) {
             printUsage(argv[0]);
@@ -112,6 +129,16 @@ int main(int argc, char **argv) {
                 printf("\nNo semantic errors found.\n");
             }
             printSymbolTable(global_scope);
+            break;
+            
+        case 't': // Trace execution
+            performSemanticAnalysis(root, global_scope);
+            if (error_count > 0) {
+                fprintf(stderr, "\nCompilation failed with %d semantic error(s)\n", error_count);
+                fprintf(stderr, "Cannot trace due to errors.\n");
+            } else {
+                interpretProgramWithTrace(root, stdout);
+            }
             break;
             
         case 'p': // Print AST

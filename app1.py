@@ -601,12 +601,12 @@ def get_trace():
         except Exception:
             cfg_data = {'nodes': [], 'edges': []}
         
-        # Run code and extract trace (fallback to heuristic on failure)
+        # Run code with trace flag to extract execution trace
         exec_stdout = ''
         exec_stderr = ''
         exec_time = 0
         try:
-            exec_result = run_mycc_command(['-i'], code, user_input)
+            exec_result = run_mycc_command(['-t'], code, user_input)
             exec_stdout = exec_result.get('stdout', '')
             exec_stderr = exec_result.get('stderr', '')
             exec_time = exec_result.get('execution_time', 0)

@@ -1,3 +1,8 @@
+# Flask Web Framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# Streamlit (for alternative UI)
 altair==5.5.0
 attrs==25.4.0
 blinker==1.9.0

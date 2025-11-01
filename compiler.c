@@ -1065,6 +1065,8 @@ float evaluateFloatExpression(ASTNode *node, VarList *vars) {
 // INTERPRETER: STATEMENT EXECUTION
 // ============================================================================
 
+void executeStatementWithTrace(ASTNode *node, VarList **vars);  // Forward declaration
+
 void executeStatement(ASTNode *node, VarList **vars) {
     if (!node) return;
     
@@ -1126,7 +1128,7 @@ void executeStatement(ASTNode *node, VarList **vars) {
                 
                 if (frame && frame->return_value_set) break;
                 
-                evaluateIntExpression(node->children[2], vars ? *vars : NULL);
+                executeStatement(node->children[2], vars);
             }
             break;
         }
@@ -1192,8 +1194,129 @@ void executeStatement(ASTNode *node, VarList **vars) {
 }
 
 // ============================================================================
+// EXECUTION TRACING FOR VISUALIZATION
+// ============================================================================
+
+static int trace_enabled = 0;
+static int trace_step = 0;
+static FILE *trace_output = NULL;
+
+void enable_trace_output(FILE *fp) {
+    trace_enabled = 1;
+    trace_output = fp ? fp : stdout;
+    trace_step = 0;
+}
+
+void disable_trace_output() {
+    trace_enabled = 0;
+    trace_output = NULL;
+}
+
+void emit_trace(const char *type, const char *block, int line, 
+                const char *content, VarList *vars) {
+    if (!trace_enabled || !trace_output) return;
+    
+    trace_step++;
+    
+    // Emit JSON trace line with TRACE prefix
+    fprintf(trace_output, "TRACE {\"step\":%d,\"type\":\"%s\",\"block\":\"%s\",\"line\":%d",
+            trace_step, type, block, line);
+    
+    if (content) {
+        fprintf(trace_output, ",\"content\":\"%s\"", content);
+    }
+    
+    // Emit variables
+    if (vars) {
+        fprintf(trace_output, ",\"variables\":{");
+        VarList *v = vars;
+        int first = 1;
+        while (v) {
+            if (!first) fprintf(trace_output, ",");
+            fprintf(trace_output, "\"%s\":", v->var.name);
+            if (v->var.type == TYPE_INT) {
+                fprintf(trace_output, "%d", v->var.value.int_val);
+            } else {
+                fprintf(trace_output, "%f", v->var.value.float_val);
+            }
+            first = 0;
+            v = v->next;
+        }
+        fprintf(trace_output, "}");
+    }
+    
+    fprintf(trace_output, "}\n");
+    fflush(trace_output);
+}
+
+// ============================================================================
 // INTERPRETER: MAIN PROGRAM EXECUTION
 // ============================================================================
+
+void interpretProgramWithTrace(ASTNode *node, FILE *trace_fp) {
+    if (!node) {
+        fprintf(stderr, "\n%s:runtime: error: no program to interpret\n", current_filename);
+        return;
+    }
+    
+    enable_trace_output(trace_fp);
+    
+    global_program_root = node;
+    VarList *global_vars = NULL;
+    
+    call_stack_top = NULL;
+    current_depth = 0;
+    
+    if (node->type == NODE_PROGRAM && node->child_count > 0) {
+        ASTNode *decl_list = node->children[0];
+        
+        int found_main = 0;
+        for (int i = 0; i < decl_list->child_count; i++) {
+            ASTNode *decl = decl_list->children[i];
+            
+            if (decl->type == NODE_FUNCTION_DECL && strcmp(decl->name, "main") == 0) {
+                found_main = 1;
+                
+                emit_trace("enter", "function", decl->line, "main", NULL);
+                
+                if (decl->child_count > 1) {
+                    StackFrame *main_frame = pushStackFrame("main");
+                    
+                    ASTNode *body = decl->children[1];
+                    for (int j = 0; j < body->child_count; j++) {
+                        executeStatementWithTrace(body->children[j], &global_vars);
+                        
+                        if (main_frame->return_value_set) break;
+                    }
+                    
+                    emit_trace("exit", "function", decl->line, "main", global_vars);
+                    
+                    popStackFrame();
+                }
+                break;
+            }
+        }
+        
+        if (!found_main) {
+            fprintf(stderr, "\n%s:1:1: error: no main function found\n", current_filename);
+        }
+    }
+    
+    while (global_vars) {
+        VarList *temp = global_vars;
+        global_vars = global_vars->next;
+        free(temp->var.name);
+        free(temp);
+    }
+    
+    while (call_stack_top) {
+        popStackFrame();
+    }
+    
+    global_program_root = NULL;
+    
+    disable_trace_output();
+}
 
 void interpretProgram(ASTNode *node) {
     if (!node) {
@@ -1256,6 +1379,157 @@ void interpretProgram(ASTNode *node) {
     }
     
     global_program_root = NULL;
+}
+
+void executeStatementWithTrace(ASTNode *node, VarList **vars) {
+    if (!node) return;
+    
+    StackFrame *frame = getCurrentFrame();
+    char content_buf[256];
+    
+    switch (node->type) {
+        case NODE_VAR_DECL:
+            snprintf(content_buf, sizeof(content_buf), "%s %s", 
+                     type_to_string(node->data_type), node->name);
+            emit_trace("execute", "declaration", node->line, content_buf, 
+                      vars ? *vars : NULL);
+            
+            if (node->child_count > 0) {
+                int val = evaluateIntExpression(node->children[0], vars ? *vars : NULL);
+                setVariable(vars, node->name, node->data_type, val, 0.0);
+            } else {
+                setVariable(vars, node->name, node->data_type, 0, 0.0);
+            }
+            
+            emit_trace("execute", "declaration", node->line, content_buf, 
+                      vars ? *vars : NULL);
+            break;
+            
+        case NODE_ASSIGN: {
+            ASTNode *id = node->children[0];
+            ASTNode *expr = node->children[1];
+            int val = evaluateIntExpression(expr, vars ? *vars : NULL);
+            
+            snprintf(content_buf, sizeof(content_buf), "%s = %d", id->name, val);
+            emit_trace("execute", "assignment", node->line, content_buf, 
+                      vars ? *vars : NULL);
+            
+            setVariable(vars, id->name, TYPE_INT, val, 0.0);
+            
+            emit_trace("execute", "assignment", node->line, content_buf, 
+                      vars ? *vars : NULL);
+            break;
+        }
+        
+        case NODE_IF_STMT: {
+            int cond = evaluateIntExpression(node->children[0], vars ? *vars : NULL);
+            
+            snprintf(content_buf, sizeof(content_buf), "condition = %d", cond);
+            emit_trace("enter", "if", node->line, content_buf, vars ? *vars : NULL);
+            
+            if (cond) {
+                executeStatementWithTrace(node->children[1], vars);
+            } else if (node->child_count > 2) {
+                emit_trace("enter", "else", node->line, NULL, vars ? *vars : NULL);
+                executeStatementWithTrace(node->children[2], vars);
+            }
+            
+            emit_trace("exit", "if", node->line, NULL, vars ? *vars : NULL);
+            break;
+        }
+        
+        case NODE_WHILE_STMT: {
+            emit_trace("enter", "while", node->line, NULL, vars ? *vars : NULL);
+            
+            while (evaluateIntExpression(node->children[0], vars ? *vars : NULL)) {
+                emit_trace("execute", "while_body", node->line, NULL, 
+                          vars ? *vars : NULL);
+                executeStatementWithTrace(node->children[1], vars);
+                if (frame && frame->return_value_set) break;
+            }
+            
+            emit_trace("exit", "while", node->line, NULL, vars ? *vars : NULL);
+            break;
+        }
+        
+        case NODE_FOR_STMT: {
+            emit_trace("enter", "for", node->line, NULL, vars ? *vars : NULL);
+            
+            executeStatementWithTrace(node->children[0], vars);
+            
+            while (node->children[1]->child_count > 0 && 
+                   evaluateIntExpression(node->children[1]->children[0], 
+                                       vars ? *vars : NULL)) {
+                emit_trace("execute", "for_body", node->line, NULL, 
+                          vars ? *vars : NULL);
+                executeStatementWithTrace(node->children[3], vars);
+                
+                if (frame && frame->return_value_set) break;
+                
+                executeStatementWithTrace(node->children[2], vars);
+            }
+            
+            emit_trace("exit", "for", node->line, NULL, vars ? *vars : NULL);
+            break;
+        }
+        
+        case NODE_PRINT_STMT: {
+            if (node->child_count > 0) {
+                ASTNode *fmt = node->children[0];
+                const char *format = fmt->name;
+                
+                emit_trace("execute", "print", node->line, format, 
+                          vars ? *vars : NULL);
+                
+                if (node->child_count > 1) {
+                    ASTNode *args = node->children[1];
+                    ASTNode **arg_array = (ASTNode **)malloc(args->child_count * sizeof(ASTNode *));
+                    for (int i = 0; i < args->child_count; i++) {
+                        arg_array[i] = args->children[i];
+                    }
+                    handlePrintf(format, arg_array, args->child_count, vars ? *vars : NULL);
+                    free(arg_array);
+                } else {
+                    handlePrintf(format, NULL, 0, vars ? *vars : NULL);
+                }
+            }
+            break;
+        }
+        
+        case NODE_SCAN_STMT:
+            executeStatement(node, vars);  // Use original for scanf
+            break;
+            
+        case NODE_COMPOUND_STMT:
+            for (int i = 0; i < node->child_count; i++) {
+                executeStatementWithTrace(node->children[i], vars);
+                if (frame && frame->return_value_set) break;
+            }
+            break;
+        
+        case NODE_RETURN_STMT:
+            if (frame) {
+                if (node->child_count > 0) {
+                    frame->return_value.int_val = evaluateIntExpression(node->children[0], 
+                                                                         vars ? *vars : NULL);
+                    snprintf(content_buf, sizeof(content_buf), "return %d", 
+                            frame->return_value.int_val);
+                } else {
+                    frame->return_value.int_val = 0;
+                    snprintf(content_buf, sizeof(content_buf), "return");
+                }
+                
+                emit_trace("execute", "return", node->line, content_buf, 
+                          vars ? *vars : NULL);
+                
+                frame->return_value_set = 1;
+            }
+            break;
+            
+        default:
+            executeStatement(node, vars);  // Fall back to original for other types
+            break;
+    }
 }
 
 // ============================================================================
