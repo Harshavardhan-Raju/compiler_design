@@ -372,8 +372,9 @@
 
         /* AST Visualization with D3 */
         #ast-canvas {
-            width: 100%;
-            height: 100%;
+            display: inline-block;
+            width: auto;
+            height: auto;
             min-height: 400px;
         }
 
@@ -407,22 +408,37 @@
             stroke-width: 2px;
         }
 
+        /* Explicit scrollable containers for AST/CFG */
+        .ast-container {
+            width: 100%;
+            height: 80vh;
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            scrollbar-width: auto;
+            -ms-overflow-style: auto;
+        }
+
+        .cfg-container {
+            width: 100%;
+            height: 80vh;
+            overflow: auto; /* both axes */
+            display: block;
+            scrollbar-width: auto;
+            -ms-overflow-style: auto;
+        }
+
         /* Control Flow Graph */
         #cfg-view {
-            overflow: auto !important;
+            overflow: visible;
         }
         
         #cfg-canvas {
-            width: 100%;
-            height: 100%;
+            display: inline-block;
+            width: auto;
+            height: auto;
             min-height: 500px;
-            display: block;
         }
-
-        .cfg-node {
-            cursor: pointer;
-        }
-
         .cfg-node rect {
             fill: #1e293b;
             stroke: #3b82f6;
@@ -812,13 +828,17 @@
             </div>
 
             <!-- AST Visualization -->
-            <div id="ast-view" class="tab-content active" style="padding: 20px; overflow-y: auto; overflow-x: hidden;">
-                <svg id="ast-canvas"></svg>
+            <div id="ast-view" class="tab-content active" style="padding: 20px;">
+                <div class="ast-container">
+                    <svg id="ast-canvas"></svg>
+                </div>
             </div>
 
             <!-- CFG Visualization -->
-            <div id="cfg-view" class="tab-content" style="padding: 20px; overflow-y: auto; overflow-x: hidden;">
-                <svg id="cfg-canvas"></svg>
+            <div id="cfg-view" class="tab-content" style="padding: 20px;">
+                <div class="cfg-container">
+                    <svg id="cfg-canvas"></svg>
+                </div>
             </div>
 
             <!-- Export Options -->
@@ -1015,47 +1035,98 @@
 
             render(astData) {
                 this.svg.selectAll('*').remove();
-                
                 const container = this.svg.node().parentElement;
-                this.width = container.clientWidth;
-                this.height = container.clientHeight;
-
-                this.svg.attr('width', this.width).attr('height', this.height);
-
-                // Create tree layout
-                const treeLayout = d3.tree()
-                    .size([this.height - 100, this.width - 100]);
+                const margin = { top: 40, right: 40, bottom: 40, left: 40 };
+                const nodeSize = { w: 160, h: 40 };
+                const sepX = 60;
+                const sepY = 60;
 
                 const root = d3.hierarchy(astData);
+                const treeLayout = d3.tree()
+                    .nodeSize([nodeSize.h + sepY, nodeSize.w + sepX])
+                    .separation((a, b) => (a.parent === b.parent ? 1 : 1.4));
                 treeLayout(root);
 
-                // Draw links
-                this.svg.selectAll('.ast-link')
+                let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+                root.each(d => {
+                    if (d.x < xMin) xMin = d.x;
+                    if (d.x > xMax) xMax = d.x;
+                    if (d.y < yMin) yMin = d.y;
+                    if (d.y > yMax) yMax = d.y;
+                });
+
+                const contentWidth = (yMax - yMin) + margin.left + margin.right + nodeSize.w;
+                const contentHeight = (xMax - xMin) + margin.top + margin.bottom + nodeSize.h;
+                this.width = Math.max(container.clientWidth, contentWidth);
+                this.height = Math.max(container.clientHeight, contentHeight);
+                this.svg.attr('width', this.width).attr('height', this.height);
+
+                const g = this.svg.append('g').attr('class', 'viewport')
+                    .attr('transform', `translate(${margin.left - yMin},${margin.top - xMin})`);
+
+                const astZoom = d3.zoom()
+                    .filter((event) => {
+                        if (event.type === 'wheel') {
+                            return event.ctrlKey || event.metaKey;
+                        }
+                        if (event.type === 'mousedown') {
+                            return event.button === 0; // left-drag pans
+                        }
+                        return true;
+                    })
+                    .scaleExtent([0.25, 4])
+                    .on('zoom', (event) => {
+                        g.attr('transform', event.transform);
+                    });
+                this.svg.call(astZoom);
+
+                g.selectAll('.ast-link')
                     .data(root.links())
                     .enter()
                     .append('path')
                     .attr('class', 'ast-link')
                     .attr('d', d3.linkHorizontal()
-                        .x(d => d.y + 50)
-                        .y(d => d.x + 50));
+                        .x(d => d.y)
+                        .y(d => d.x));
 
-                // Draw nodes
-                const nodes = this.svg.selectAll('.ast-node')
+                const nodes = g.selectAll('.ast-node')
                     .data(root.descendants())
                     .enter()
                     .append('g')
                     .attr('class', 'ast-node')
-                    .attr('transform', d => `translate(${d.y + 50},${d.x + 50})`);
+                    .attr('transform', d => `translate(${d.y},${d.x})`);
 
-                nodes.append('circle')
-                    .attr('r', 20);
+                nodes.append('circle').attr('r', 18);
 
                 nodes.append('text')
                     .attr('dy', 4)
                     .attr('text-anchor', 'middle')
-                    .text(d => d.data.name || d.data.type);
+                    .each(function(d) {
+                        const name = (d.data.name || d.data.type || '').toString();
+                        const maxChars = 18;
+                        const words = name.split(/\s+/);
+                        const lines = [];
+                        let line = [];
+                        words.forEach(w => {
+                            const test = [...line, w].join(' ');
+                            if (test.length > maxChars) {
+                                if (line.length) lines.push(line.join(' '));
+                                line = [w];
+                            } else {
+                                line.push(w);
+                            }
+                        });
+                        if (line.length) lines.push(line.join(' '));
+                        const text = d3.select(this);
+                        text.selectAll('tspan')
+                            .data(lines)
+                            .enter()
+                            .append('tspan')
+                            .attr('x', 0)
+                            .attr('dy', (l, i) => i === 0 ? 0 : 14)
+                            .text(l => l);
+                    });
 
-                // Add tooltip
                 nodes.append('title')
                     .text(d => `${d.data.type}\n${d.data.name || ''}`);
             }
@@ -1075,19 +1146,40 @@
                 const container = this.svg.node().parentElement;
                 const containerWidth = container.clientWidth;
                 const containerHeight = container.clientHeight;
-                
-                // Calculate required dimensions based on number of nodes
-                const nodeCount = cfgData.nodes ? cfgData.nodes.length : 0;
-                const nodeHeight = 50;
-                const verticalGap = 80;
-                const minHeight = Math.max(containerHeight, nodeCount * (nodeHeight + verticalGap) + 100);
-                
-                this.width = Math.max(containerWidth, 400);
-                this.height = minHeight;
+                const nodes = cfgData.nodes || [];
+                const edges = cfgData.edges || [];
+
+                const nodeHeight = 56;
+                const verticalGap = 90;
+                const charW = 7.2;
+                const padding = 24;
+                const computedWidths = nodes.map(n => Math.max(120, Math.min(600, Math.round((n.label || '').length * charW) + padding)));
+                const nodeWidth = Math.max(140, ...computedWidths);
+
+                const totalHeight = nodes.length * (nodeHeight + verticalGap) + 120;
+                const minWidth = 480;
+                this.width = Math.max(containerWidth, nodeWidth + 200, minWidth);
+                this.height = Math.max(containerHeight, totalHeight);
 
                 this.svg.attr('width', this.width).attr('height', this.height);
 
-                // Define arrow marker
+                const g = this.svg.append('g').attr('class', 'viewport');
+                const cfgZoom = d3.zoom()
+                    .filter((event) => {
+                        if (event.type === 'wheel') {
+                            return event.ctrlKey || event.metaKey;
+                        }
+                        if (event.type === 'mousedown') {
+                            return event.button === 0; // left-drag pans
+                        }
+                        return true;
+                    })
+                    .scaleExtent([0.25, 4])
+                    .on('zoom', (event) => {
+                        g.attr('transform', event.transform);
+                    });
+                this.svg.call(cfgZoom);
+
                 this.svg.append('defs').append('marker')
                     .attr('id', 'arrowhead')
                     .attr('viewBox', '-10 -10 20 20')
@@ -1100,22 +1192,13 @@
                     .attr('d', 'M-8,-8 L 0,0 L -8,8')
                     .attr('fill', '#64748b');
 
-                // Layout nodes
-                const nodes = cfgData.nodes;
-                const edges = cfgData.edges;
-
-                const nodeWidth = 120;
-                const horizontalGap = 40;
-
-                // Simple vertical layout with left padding to prevent cutoff
-                const leftPadding = Math.max(nodeWidth, 150);
+                const leftPadding = Math.max(nodeWidth, 180);
                 nodes.forEach((node, i) => {
                     node.x = leftPadding + (this.width - leftPadding * 2) / 2;
                     node.y = 60 + i * (nodeHeight + verticalGap);
                 });
 
-                // Draw edges
-                this.svg.selectAll('.cfg-edge')
+                g.selectAll('.cfg-edge')
                     .data(edges)
                     .enter()
                     .append('path')
@@ -1129,8 +1212,7 @@
                                 L ${target.x} ${target.y - nodeHeight/2}`;
                     });
 
-                // Draw nodes
-                const nodeGroups = this.svg.selectAll('.cfg-node')
+                const nodeGroups = g.selectAll('.cfg-node')
                     .data(nodes)
                     .enter()
                     .append('g')
@@ -1144,10 +1226,34 @@
 
                 nodeGroups.append('text')
                     .attr('x', nodeWidth / 2)
-                    .attr('y', nodeHeight / 2)
-                    .attr('dy', 4)
+                    .attr('y', nodeHeight / 2 - 8)
+                    .attr('dy', 0)
                     .attr('text-anchor', 'middle')
-                    .text(d => d.label);
+                    .each(function(d) {
+                        const name = (d.label || '').toString();
+                        const maxChars = Math.max(12, Math.floor((nodeWidth - 20) / charW));
+                        const words = name.split(/\s+/);
+                        const lines = [];
+                        let line = [];
+                        words.forEach(w => {
+                            const test = [...line, w].join(' ');
+                            if (test.length > maxChars) {
+                                if (line.length) lines.push(line.join(' '));
+                                line = [w];
+                            } else {
+                                line.push(w);
+                            }
+                        });
+                        if (line.length) lines.push(line.join(' '));
+                        const text = d3.select(this);
+                        text.selectAll('tspan')
+                            .data(lines)
+                            .enter()
+                            .append('tspan')
+                            .attr('x', nodeWidth / 2)
+                            .attr('dy', (l, i) => i === 0 ? 0 : 14)
+                            .text(l => l);
+                    });
             }
 
             highlightNode(nodeId) {
