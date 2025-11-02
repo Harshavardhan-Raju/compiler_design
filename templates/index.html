@@ -1842,27 +1842,47 @@
 
         function createExecutionBlock(step, index) {
             const block = document.createElement('div');
-            block.className = `execution-block block-type-${step.block}`;
+            const blockType = step.block || step.type || 'execute';
+            block.className = `execution-block block-type-${blockType}`;
             block.dataset.step = index;
 
-            const icon = getBlockIcon(step.block);
+            const icon = getBlockIcon(blockType);
             const timing = step.timing !== undefined ? step.timing.toFixed(1) : '0.0';
+            
+            // Format the title properly
+            let title = formatBlockTitle(step);
+            
+            // Format content to display
+            let contentHtml = '';
+            if (step.content) {
+                contentHtml = `<div class="block-content">${escapeHtml(step.content)}</div>`;
+            } else if (step.condition) {
+                contentHtml = `<div class="block-content">${escapeHtml(step.condition)}</div>`;
+            } else if (step.name && step.block === 'function') {
+                contentHtml = `<div class="block-content">${escapeHtml(step.name)}</div>`;
+            }
 
             block.innerHTML = `
                 <div class="block-header">
                     <div class="block-info">
                         <span class="block-icon">${icon}</span>
-                        <span class="block-title">${formatBlockTitle(step)}</span>
+                        <span class="block-title">${title}</span>
                     </div>
                     <div class="block-timing">
                         <span>⏱</span>
                         <span>${timing}ms</span>
                     </div>
                 </div>
-                ${step.content || step.condition ? `<div class="block-content">${step.content || step.condition}</div>` : ''}
+                ${contentHtml}
             `;
 
             return block;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         function getBlockIcon(type) {

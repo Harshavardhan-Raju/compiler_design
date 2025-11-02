@@ -259,12 +259,28 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
     # Fallback heuristic (very light) if no TRACE was parsed
     lines = code.split('\n')
     variables: Dict[str, Any] = {}
+    
+    # Add function entry for main
     for i, src in enumerate(lines, 1):
         s = src.strip()
-        if not s:
+        if 'int main()' in s or 'void main()' in s:
+            trace.append({
+                'step': len(trace) + 1,
+                'type': 'enter',
+                'block': 'function',
+                'name': 'main',
+                'line': i,
+                'timing': 0.0,
+                'variables': dict(variables)
+            })
+            break
+    
+    for i, src in enumerate(lines, 1):
+        s = src.strip()
+        if not s or 'main()' in s or s == '{' or s == '}':
             continue
         # Declarations with initialization
-        if s.startswith('int') and '=' in s:
+        if s.startswith('int') and '=' in s and 'main' not in s:
             try:
                 name_part = s.replace('int', '').replace(';', '')
                 var_name, var_value = [p.strip() for p in name_part.split('=', 1)]
@@ -275,6 +291,7 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
                     'block': 'declaration',
                     'content': s,
                     'line': i,
+                    'timing': 0.2,
                     'variables': dict(variables)
                 })
             except Exception:
@@ -291,6 +308,7 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
                     'block': 'declaration',
                     'content': s,
                     'line': i,
+                    'timing': 0.2,
                     'variables': dict(variables)
                 })
             except Exception:
@@ -314,6 +332,7 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
                     'block': 'assignment',
                     'content': s,
                     'line': i,
+                    'timing': 0.2,
                     'variables': dict(variables)
                 })
             except Exception:
@@ -326,6 +345,7 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
                 'block': 'if',
                 'condition': cond,
                 'line': i,
+                'timing': 0.3,
                 'variables': dict(variables)
             })
         # printf simple detection
@@ -336,10 +356,22 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
                 'block': 'print',
                 'content': s,
                 'line': i,
+                'timing': 0.1,
                 'variables': dict(variables)
             })
-    # Add a final return/exit step if we had any steps
-    if trace:
+        # return statement
+        elif s.startswith('return'):
+            trace.append({
+                'step': len(trace) + 1,
+                'type': 'execute',
+                'block': 'return',
+                'content': s,
+                'line': i,
+                'timing': 0.1,
+                'variables': dict(variables)
+            })
+    # Add a final exit step if we had any steps
+    if trace and trace[-1].get('block') != 'function':
         last_line = len(lines)
         trace.append({
             'step': len(trace) + 1,
@@ -347,6 +379,7 @@ def extract_execution_trace(output: str, code: str) -> List[Dict[str, Any]]:
             'block': 'function',
             'name': 'main',
             'line': last_line,
+            'timing': 0.1,
             'variables': dict(variables)
         })
     return trace
