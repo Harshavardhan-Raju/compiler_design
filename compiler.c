@@ -1226,10 +1226,13 @@ void emit_trace(const char *type, const char *block, int line,
         fprintf(trace_output, ",\"content\":\"%s\"", content);
     }
     
-    // Emit variables
-    if (vars) {
+    // Emit variables - prioritize frame local vars over global vars
+    StackFrame *frame = getCurrentFrame();
+    VarList *var_list = (frame && frame->local_vars) ? frame->local_vars : vars;
+    
+    if (var_list) {
         fprintf(trace_output, ",\"variables\":{");
-        VarList *v = vars;
+        VarList *v = var_list;
         int first = 1;
         while (v) {
             if (!first) fprintf(trace_output, ",");
@@ -1389,11 +1392,7 @@ void executeStatementWithTrace(ASTNode *node, VarList **vars) {
     
     switch (node->type) {
         case NODE_VAR_DECL:
-            snprintf(content_buf, sizeof(content_buf), "%s %s", 
-                     type_to_string(node->data_type), node->name);
-            emit_trace("execute", "declaration", node->line, content_buf, 
-                      vars ? *vars : NULL);
-            
+            // First set the variable
             if (node->child_count > 0) {
                 int val = evaluateIntExpression(node->children[0], vars ? *vars : NULL);
                 setVariable(vars, node->name, node->data_type, val, 0.0);
@@ -1401,6 +1400,9 @@ void executeStatementWithTrace(ASTNode *node, VarList **vars) {
                 setVariable(vars, node->name, node->data_type, 0, 0.0);
             }
             
+            // Then emit trace with updated variables
+            snprintf(content_buf, sizeof(content_buf), "%s %s", 
+                     type_to_string(node->data_type), node->name);
             emit_trace("execute", "declaration", node->line, content_buf, 
                       vars ? *vars : NULL);
             break;
@@ -1410,12 +1412,11 @@ void executeStatementWithTrace(ASTNode *node, VarList **vars) {
             ASTNode *expr = node->children[1];
             int val = evaluateIntExpression(expr, vars ? *vars : NULL);
             
-            snprintf(content_buf, sizeof(content_buf), "%s = %d", id->name, val);
-            emit_trace("execute", "assignment", node->line, content_buf, 
-                      vars ? *vars : NULL);
-            
+            // First update the variable
             setVariable(vars, id->name, TYPE_INT, val, 0.0);
             
+            // Then emit trace with updated variables
+            snprintf(content_buf, sizeof(content_buf), "%s = %d", id->name, val);
             emit_trace("execute", "assignment", node->line, content_buf, 
                       vars ? *vars : NULL);
             break;

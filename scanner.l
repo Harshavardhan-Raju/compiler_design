@@ -90,6 +90,10 @@ char *processEscapes(const char *str) {
 
 [ \t]+                  { /* Skip whitespace */ }
 \n                      { line_num++; }
-.                       { printf("Unknown character: %s\n", yytext); }
+\r                      { /* Skip carriage return (Windows line endings) */ }
+.                       { 
+    fprintf(stderr, "%s:%d: warning: unknown character '%s' (ASCII %d) ignored\n", 
+            current_filename, line_num, yytext, (unsigned char)yytext[0]); 
+}
 
 %%

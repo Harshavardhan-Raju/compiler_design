@@ -90,7 +90,8 @@ extern int yydebug;
     LBRACE = 291,                  /* LBRACE  */
     RBRACE = 292,                  /* RBRACE  */
     AMPERSAND = 293,               /* AMPERSAND  */
-    UMINUS = 294                   /* UMINUS  */
+    UMINUS = 294,                  /* UMINUS  */
+    LOWER_THAN_ELSE = 295          /* LOWER_THAN_ELSE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -107,7 +108,7 @@ union YYSTYPE
     struct ASTNode *node;
     int type;
 
-#line 111 "parser.tab.h"
+#line 112 "parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

@@ -54,6 +54,9 @@ void yyerror(const char *s) {
 %right NOT UMINUS
 %left LPAREN RPAREN
 
+%nonassoc LOWER_THAN_ELSE
+%nonassoc ELSE
+
 %error-verbose
 
 %%
@@ -209,7 +212,7 @@ expr_stmt:
     ;
 
 selection_stmt:
-    IF LPAREN expr RPAREN stmt {
+    IF LPAREN expr RPAREN stmt %prec LOWER_THAN_ELSE {
         $$ = createNode(NODE_IF_STMT, "If");
         addChild($$, $3);
         addChild($$, $5);

@@ -17,12 +17,11 @@ int main() {
 }
 */
 
-int main(){
-int a  = 5;
-int b ;
-int c;
-
-c = a ;
-printf("%d",c);
-
+int main() {
+    int a = 5;
+    int b;
+    int c;
+    c = a;
+    printf("%d", c);
+    return 0;
 }

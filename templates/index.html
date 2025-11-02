@@ -270,11 +270,19 @@
             border-radius: 8px;
             padding: 12px;
             font-family: 'Fira Code', monospace;
-            font-size: 12px;
-            color: #e2e8f0;
-            max-height: 160px;
+            font-size: 13px;
+            color: #10b981;
+            min-height: 80px;
+            max-height: 200px;
             overflow-y: auto;
             white-space: pre-wrap;
+            line-height: 1.5;
+        }
+        
+        .output-box:empty::before {
+            content: '(no output)';
+            color: #64748b;
+            font-style: italic;
         }
 
         /* Execution Blocks with Timing */
@@ -400,10 +408,15 @@
         }
 
         /* Control Flow Graph */
+        #cfg-view {
+            overflow: auto !important;
+        }
+        
         #cfg-canvas {
             width: 100%;
             height: 100%;
-            min-height: 300px;
+            min-height: 500px;
+            display: block;
         }
 
         .cfg-node {
@@ -594,10 +607,12 @@
         .tab-content {
             display: none;
             height: 100%;
+            overflow: auto;
         }
 
         .tab-content.active {
-            display: block;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Scrollbar */
@@ -797,12 +812,12 @@
             </div>
 
             <!-- AST Visualization -->
-            <div id="ast-view" class="tab-content active" style="flex: 1; padding: 20px;">
+            <div id="ast-view" class="tab-content active" style="padding: 20px; overflow-y: auto; overflow-x: hidden;">
                 <svg id="ast-canvas"></svg>
             </div>
 
             <!-- CFG Visualization -->
-            <div id="cfg-view" class="tab-content" style="flex: 1; padding: 20px;">
+            <div id="cfg-view" class="tab-content" style="padding: 20px; overflow-y: auto; overflow-x: hidden;">
                 <svg id="cfg-canvas"></svg>
             </div>
 
@@ -1058,8 +1073,17 @@
                 this.svg.selectAll('*').remove();
 
                 const container = this.svg.node().parentElement;
-                this.width = container.clientWidth;
-                this.height = container.clientHeight;
+                const containerWidth = container.clientWidth;
+                const containerHeight = container.clientHeight;
+                
+                // Calculate required dimensions based on number of nodes
+                const nodeCount = cfgData.nodes ? cfgData.nodes.length : 0;
+                const nodeHeight = 50;
+                const verticalGap = 80;
+                const minHeight = Math.max(containerHeight, nodeCount * (nodeHeight + verticalGap) + 100);
+                
+                this.width = Math.max(containerWidth, 400);
+                this.height = minHeight;
 
                 this.svg.attr('width', this.width).attr('height', this.height);
 
@@ -1080,14 +1104,13 @@
                 const nodes = cfgData.nodes;
                 const edges = cfgData.edges;
 
-                const nodeHeight = 50;
                 const nodeWidth = 120;
-                const verticalGap = 80;
                 const horizontalGap = 40;
 
-                // Simple vertical layout
+                // Simple vertical layout with left padding to prevent cutoff
+                const leftPadding = Math.max(nodeWidth, 150);
                 nodes.forEach((node, i) => {
-                    node.x = this.width / 2;
+                    node.x = leftPadding + (this.width - leftPadding * 2) / 2;
                     node.y = 60 + i * (nodeHeight + verticalGap);
                 });
 
@@ -1468,7 +1491,15 @@
                 });
 
                 const res = await resp.json();
-                setProgramOutput((Array.isArray(res.errors) ? res.errors.map(e => `Line ${e.line}: ${e.message}`).join('\n') : (res.output || '')) || '');
+                
+                // Always show output in the output box
+                if (Array.isArray(res.errors) && res.errors.length > 0) {
+                    const errorMsg = res.errors.map(e => `Line ${e.line}: ${e.message}`).join('\n');
+                    setProgramOutput('ERRORS:\n' + errorMsg);
+                } else {
+                    setProgramOutput(res.output || '(no output)');
+                }
+                
                 if (!res.success) {
                     if (Array.isArray(res.errors)) {
                         applyErrors(res.errors);
@@ -1479,7 +1510,8 @@
                     }
                 } else {
                     clearErrors();
-                    alert('Program output:\n' + (res.output || '<no output>'));
+                    // Don't show alert for successful runs, output is in the box
+                    console.log('Program executed successfully. Output:', res.output);
                 }
             } catch (err) {
                 console.error(err);
