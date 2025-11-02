@@ -374,6 +374,65 @@ def parse_syntax_errors(stderr: str) -> List[Dict[str, Any]]:
     return errors
 
 
+def strip_trace_lines(output: str) -> str:
+    """
+    Remove TRACE JSON lines emitted by the interpreter from stdout so the
+    returned program output is clean for the UI.
+    """
+    if not output:
+        return ''
+
+    cleaned_lines: List[str] = []
+    for raw in output.splitlines():
+        line = raw.rstrip('\r\n')
+        if not line:
+            cleaned_lines.append(line)
+            continue
+
+        upper = line.upper()
+
+        # If the line contains an inline TRACE prefix (e.g. "5TRACE {...}"),
+        # keep the part before TRACE and discard the trace payload.
+        idx = upper.find('TRACE ')
+        if idx != -1:
+            before = line[:idx].rstrip()
+            if before:
+                cleaned_lines.append(before)
+            # drop the trace portion
+            continue
+
+        # If the line contains an inline JSON trace object without the TRACE prefix
+        # (e.g. "5{"step":...}"), attempt to find the start of JSON and parse it.
+        brace_idx = line.find('{')
+        if brace_idx != -1:
+            candidate = line[brace_idx:]
+            if '"step"' in candidate and ('"type"' in candidate or '"block"' in candidate):
+                try:
+                    _ = json.loads(candidate)
+                    before = line[:brace_idx].rstrip()
+                    if before:
+                        cleaned_lines.append(before)
+                    continue
+                except Exception:
+                    # not a JSON trace; fall through and keep whole line
+                    pass
+
+        # Skip whole-line TRACE or JSON-only trace lines
+        if line.upper().startswith('TRACE '):
+            continue
+        stripped = line.strip()
+        if stripped.startswith('{') and '"step"' in stripped and ('"type"' in stripped or '"block"' in stripped):
+            try:
+                _ = json.loads(stripped)
+                continue
+            except Exception:
+                pass
+
+        cleaned_lines.append(line)
+
+    return '\n'.join(cleaned_lines).strip()
+
+
 # ==================== ROUTES ====================
 
 @app.route('/')
@@ -623,7 +682,7 @@ def get_trace():
             'trace': trace_data,
             'ast': build_ast_hierarchy(ast_data),
             'cfg': cfg_data,
-            'output': exec_stdout,
+            'output': strip_trace_lines(exec_stdout),
             'execution_time': exec_time,
             'errors': syntax_errors
         })

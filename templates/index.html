@@ -1261,11 +1261,12 @@
                     renderExecutionBlocks(state.traceData);
                     document.getElementById('stat-total').textContent = state.totalSteps;
                     document.getElementById('stat-blocks').textContent = state.totalSteps;
-                    setProgramOutput(data.output || '');
                     // Store errors; do not mark immediately – mark when step is reached
                     state.errors = Array.isArray(data.errors) ? data.errors : [];
                     clearErrors();
+                    // Reset execution state but keep program output visible
                     resetExecution();
+                    setProgramOutput(data.output || '');
                 } catch (err) {
                     setButtonsDisabled(false);
                     state.loading = false;
@@ -1276,8 +1277,9 @@
                     state.loading = false;
                 }
             } else {
-                await loadExecutionData();
-                resetExecution();
+                // No code provided — do not auto-load example; prompt user to provide code
+                alert('Please enter C source code to visualize or click "Load Example".');
+                return;
             }
 
             state.running = true;
@@ -1877,8 +1879,12 @@
 
         // ==================== INITIALIZE ====================
         window.addEventListener('load', () => {
-            loadExampleData();
-            
+            // Do not auto-load example data on initial page load. Wait for user input.
+            // Ensure code viewer is empty and visualizations are blank.
+            codeSynchronizer.loadCode('');
+            safeRenderAST({ type: 'Program', name: 'Program', children: [] });
+            safeRenderCFG({ nodes: [], edges: [] });
+
             // Resize handlers for D3 visualizations
             window.addEventListener('resize', () => {
                 if (state.traceData.length > 0) {
