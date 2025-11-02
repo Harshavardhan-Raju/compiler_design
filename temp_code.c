@@ -1,13 +1,24 @@
-int factorial(int n) {
-    if (n <= 1) {
-        return 1;
+// #include <stdio.h>
+
+int fib_iter(int n) {
+    int a = 0;
+    int b = 1;
+    int temp;
+    int i = 2;
+
+    while (i <= n) {
+        temp = a + b;
+        a = b;
+        b = temp;
+        i = i + 1; // increment
     }
-    return n * factorial(n - 1);
+
+    return b;
 }
 
 int main() {
-    int result;
-    result = factorial(5);
-    printf("Factorial = %d\n", result);
+    int x = 7;
+    int result = fib_iter(x);
+    printf("Fibonacci(%d) = %d\n", x, result);
     return 0;
 }

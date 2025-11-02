@@ -1,4 +1,25 @@
-/*
+// // Corrected Fibonacci - Changed i++ to i = i + 1
+
+// int fib_iter(int n) {
+//     int a = 0;
+//     int b = 1;
+//     int temp;
+//     int i;
+//     for (i = 2; i <= n; i = i + 1) {  // Changed i++ to i = i + 1
+//         temp = a + b;
+//         a = b;
+//         b = temp;
+//     }
+//     return b;
+// }
+
+// int main() {
+//     int x = 7;
+//     int result = fib_iter(x);
+//     printf("Fibonacci(%d) = %d\n", x, result);
+//     return 0;
+// }
+
 int factorial(int n) {
     if (n <= 1) {
         return 1;
@@ -8,21 +29,7 @@ int factorial(int n) {
 
 int main() {
     int result;
-    int k ;
-    printf("Enter a number:");
-    scanf("%d",&k);
-    result = factorial(k);
-    printf("Factorial of 5 = %d", result);
+    result = factorial(5);
+    printf("Factorial = %d\n", result);
     return 0;
-}
-*/
-
-int main(){
-int a  = 5;
-int b ;
-int c;
-
-c = a +"hello";
-printf("%d",c)
-
 }

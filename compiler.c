@@ -1,12 +1,11 @@
 /**
- * compiler.c - Enhanced Mini C Compiler with GCC-Style Error Reporting
+ * compiler.c - Enhanced Mini C Compiler with Full Loop Support
  * 
- * Features:
- * - Full recursive function call support with call stack management
- * - GCC-style error messages with line:column format
- * - Beginner-friendly suggested fixes for each error
- * - Comprehensive error collection (doesn't stop at first error)
- * - All existing functionality preserved
+ * New Features:
+ * - Fixed while and for loop execution
+ * - Proper variable update in loop iterations
+ * - Enhanced GCC-style colored error messages
+ * - All previous functionality preserved
  */
 
 #include "compiler.h"
@@ -15,7 +14,7 @@
 char *current_filename = "input.c";
 
 // ============================================================================
-// ENHANCED ERROR REPORTING SYSTEM
+// ENHANCED ERROR REPORTING SYSTEM WITH COLORS
 // ============================================================================
 
 /**
@@ -35,7 +34,7 @@ const char *type_to_string(DataType type) {
  * Report error in GCC style: filename:line:column: error: message
  */
 void report_error(int line, int col, const char *error_type, const char *message) {
-    fprintf(stderr, "\n%s:%d:%d: %s: %s\n", 
+    fprintf(stderr, "\n%s:%d:%d: \033[1;31m%s:\033[0m %s\n", 
             current_filename, line, col, error_type, message);
     error_count++;
 }
@@ -44,7 +43,7 @@ void report_error(int line, int col, const char *error_type, const char *message
  * Add a suggested fix note
  */
 void suggest_fix(const char *suggestion) {
-    fprintf(stderr, "Suggested fix:\n");
+    fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n");
     fprintf(stderr, "    %s\n", suggestion);
 }
 
@@ -56,7 +55,7 @@ void report_undeclared_variable(const char *var_name, int line, int col) {
     snprintf(msg, sizeof(msg), "use of undeclared identifier '%s'", var_name);
     report_error(line, col, "error", msg);
     
-    fprintf(stderr, "note: variables must be declared before use\n");
+    fprintf(stderr, "\033[1;36mnote:\033[0m variables must be declared before use\n");
     suggest_fix("Declare the variable before using it:");
     fprintf(stderr, "        int %s = 0;  // for integer variable\n", var_name);
     fprintf(stderr, "        float %s = 0.0;  // for floating-point variable\n", var_name);
@@ -70,7 +69,7 @@ void report_undeclared_function(const char *func_name, int line, int col) {
     snprintf(msg, sizeof(msg), "implicit declaration of function '%s'", func_name);
     report_error(line, col, "error", msg);
     
-    fprintf(stderr, "note: functions must be declared before calling them\n");
+    fprintf(stderr, "\033[1;36mnote:\033[0m functions must be declared before calling them\n");
     suggest_fix("Define the function before main():");
     fprintf(stderr, "        int %s(int param) {\n", func_name);
     fprintf(stderr, "            // function body\n");
@@ -86,7 +85,7 @@ void report_redeclaration(const char *name, int line, int col, int prev_line, in
     snprintf(msg, sizeof(msg), "redefinition of '%s'", name);
     report_error(line, col, "error", msg);
     
-    fprintf(stderr, "note: previous %s was at line %d\n", 
+    fprintf(stderr, "\033[1;36mnote:\033[0m previous %s was at line %d\n", 
             is_function ? "definition" : "declaration", prev_line);
     
     if (is_function) {
@@ -107,7 +106,7 @@ void report_type_mismatch(const char *op, DataType left, DataType right, int lin
              op, type_to_string(left), type_to_string(right));
     report_error(line, col, "error", msg);
     
-    fprintf(stderr, "note: cannot perform operation on incompatible types\n");
+    fprintf(stderr, "\033[1;36mnote:\033[0m cannot perform operation on incompatible types\n");
     
     if (left == TYPE_INT && right == TYPE_FLOAT) {
         suggest_fix("Cast one operand to match the other:");
@@ -132,7 +131,7 @@ void report_argument_mismatch(const char *func_name, int expected, int provided,
     }
     report_error(line, col, "error", msg);
     
-    fprintf(stderr, "note: function expects %d argument%s, %d provided\n", 
+    fprintf(stderr, "\033[1;36mnote:\033[0m function expects %d argument%s, %d provided\n", 
             expected, expected == 1 ? "" : "s", provided);
     
     suggest_fix("Provide the correct number of arguments:");
@@ -169,10 +168,10 @@ static ASTNode *global_program_root = NULL;
 
 StackFrame *pushStackFrame(const char *func_name) {
     if (current_depth >= MAX_CALL_DEPTH) {
-        fprintf(stderr, "\n%s:runtime: error: stack overflow - maximum recursion depth exceeded\n", 
+        fprintf(stderr, "\n%s:runtime: \033[1;31merror:\033[0m stack overflow - maximum recursion depth exceeded\n", 
                 current_filename);
-        fprintf(stderr, "note: recursion depth limit is %d calls\n", MAX_CALL_DEPTH);
-        fprintf(stderr, "Suggested fix:\n");
+        fprintf(stderr, "\033[1;36mnote:\033[0m recursion depth limit is %d calls\n", MAX_CALL_DEPTH);
+        fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n");
         fprintf(stderr, "    Check function '%s' for infinite recursion\n", func_name);
         fprintf(stderr, "    Ensure base case is reachable: if (n <= 0) return 1;\n");
         exit(1);
@@ -317,16 +316,6 @@ void printAST(ASTNode *node, int depth) {
     }
 }
 
-/**
- * Enhanced JSON Export Function for compiler.c
- * Add this function to replace exportASTtoJSON in compiler.c
- * This generates cleaner JSON format matching your specification
- */
-
-/**
- * Export AST to clean JSON format
- * Format: { "type": "...", "name": "...", "operator": "...", "value": ..., "children": [...] }
- */
 void exportASTtoJSON(ASTNode *node, FILE *fp, int indent) {
     if (!node) {
         fprintf(fp, "null");
@@ -335,11 +324,9 @@ void exportASTtoJSON(ASTNode *node, FILE *fp, int indent) {
     
     fprintf(fp, "{\n");
     
-    // Always include type
     for (int i = 0; i <= indent; i++) fprintf(fp, "  ");
     fprintf(fp, "\"type\": \"%s\"", nodeTypeToString(node->type));
     
-    // For binary/unary operators, use "operator" field instead of "name"
     if (node->type == NODE_BINARY_OP || node->type == NODE_UNARY_OP) {
         if (node->name) {
             fprintf(fp, ",\n");
@@ -347,15 +334,13 @@ void exportASTtoJSON(ASTNode *node, FILE *fp, int indent) {
             fprintf(fp, "\"operator\": \"%s\"", node->name);
         }
     } else {
-        // For other nodes, use "name" field
-        if (node->name && node->name[0] != '"') {  // Skip format strings
+        if (node->name && node->name[0] != '"') {
             fprintf(fp, ",\n");
             for (int i = 0; i <= indent; i++) fprintf(fp, "  ");
             fprintf(fp, "\"name\": \"%s\"", node->name);
         }
     }
     
-    // Add value for literals
     if (node->type == NODE_INT_LITERAL) {
         fprintf(fp, ",\n");
         for (int i = 0; i <= indent; i++) fprintf(fp, "  ");
@@ -366,7 +351,6 @@ void exportASTtoJSON(ASTNode *node, FILE *fp, int indent) {
         fprintf(fp, "\"value\": %f", node->value.float_val);
     }
     
-    // Process children
     if (node->child_count > 0) {
         fprintf(fp, ",\n");
         for (int i = 0; i <= indent; i++) fprintf(fp, "  ");
@@ -385,49 +369,6 @@ void exportASTtoJSON(ASTNode *node, FILE *fp, int indent) {
     
     fprintf(fp, "\n");
     for (int i = 0; i < indent; i++) fprintf(fp, "  ");
-    fprintf(fp, "}");
-}
-
-/**
- * Alternative: Export to minimized JSON (one line, no extra whitespace)
- * Useful for generating compact JSON files
- */
-void exportASTtoJSONMinified(ASTNode *node, FILE *fp) {
-    if (!node) {
-        fprintf(fp, "null");
-        return;
-    }
-    
-    fprintf(fp, "{\"type\":\"%s\"", nodeTypeToString(node->type));
-    
-    // Operator vs name
-    if (node->type == NODE_BINARY_OP || node->type == NODE_UNARY_OP) {
-        if (node->name) {
-            fprintf(fp, ",\"operator\":\"%s\"", node->name);
-        }
-    } else {
-        if (node->name && node->name[0] != '"') {
-            fprintf(fp, ",\"name\":\"%s\"", node->name);
-        }
-    }
-    
-    // Value for literals
-    if (node->type == NODE_INT_LITERAL) {
-        fprintf(fp, ",\"value\":%d", node->value.int_val);
-    } else if (node->type == NODE_FLOAT_LITERAL) {
-        fprintf(fp, ",\"value\":%f", node->value.float_val);
-    }
-    
-    // Children
-    if (node->child_count > 0) {
-        fprintf(fp, ",\"children\":[");
-        for (int i = 0; i < node->child_count; i++) {
-            exportASTtoJSONMinified(node->children[i], fp);
-            if (i < node->child_count - 1) fprintf(fp, ",");
-        }
-        fprintf(fp, "]");
-    }
-    
     fprintf(fp, "}");
 }
 
@@ -595,7 +536,7 @@ void performSemanticAnalysis(ASTNode *node, SymbolTable *table) {
                 char msg[512];
                 snprintf(msg, sizeof(msg), "'%s' is not a function", node->name);
                 report_error(node->line, node->column, "error", msg);
-                fprintf(stderr, "note: '%s' was declared as a variable at line %d\n", 
+                fprintf(stderr, "\033[1;36mnote:\033[0m '%s' was declared as a variable at line %d\n", 
                        node->name, func->line);
                 suggest_fix("Use a function name, or remove parentheses to access the variable");
             }
@@ -806,10 +747,10 @@ ASTNode *findFunction(ASTNode *program, const char *name) {
 int executeFunction(const char *func_name, VarList *args, ASTNode *program) {
     ASTNode *func = findFunction(program, func_name);
     if (!func || func->child_count < 2) {
-        fprintf(stderr, "\n%s:runtime: error: function '%s' not found or incomplete\n", 
+        fprintf(stderr, "\n%s:runtime: \033[1;31merror:\033[0m function '%s' not found or incomplete\n", 
                 current_filename, func_name);
-        fprintf(stderr, "note: ensure function is defined with a body\n");
-        fprintf(stderr, "Suggested fix:\n");
+        fprintf(stderr, "\033[1;36mnote:\033[0m ensure function is defined with a body\n");
+        fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n");
         fprintf(stderr, "    int %s() {\n", func_name);
         fprintf(stderr, "        // function body\n");
         fprintf(stderr, "        return 0;\n");
@@ -904,7 +845,7 @@ int evaluateIntExpression(ASTNode *node, VarList *vars) {
         
         case NODE_FUNC_CALL: {
             if (!global_program_root) {
-                fprintf(stderr, "\n%s:runtime: error: cannot call function '%s' - no program context\n", 
+                fprintf(stderr, "\n%s:runtime: \033[1;31merror:\033[0m cannot call function '%s' - no program context\n", 
                         current_filename, node->name);
                 return 0;
             }
@@ -961,10 +902,10 @@ int evaluateIntExpression(ASTNode *node, VarList *vars) {
             if (strcmp(node->name, "*") == 0) return left * right;
             if (strcmp(node->name, "/") == 0) {
                 if (right == 0) {
-                    fprintf(stderr, "\n%s:%d:%d: error: division by zero\n", 
+                    fprintf(stderr, "\n%s:%d:%d: \033[1;31merror:\033[0m division by zero\n", 
                             current_filename, node->line, node->column);
-                    fprintf(stderr, "note: the divisor evaluated to zero\n");
-                    fprintf(stderr, "Suggested fix:\n");
+                    fprintf(stderr, "\033[1;36mnote:\033[0m the divisor evaluated to zero\n");
+                    fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n");
                     fprintf(stderr, "    if (divisor != 0) {\n");
                     fprintf(stderr, "        result = numerator / divisor;\n");
                     fprintf(stderr, "    }\n");
@@ -974,10 +915,10 @@ int evaluateIntExpression(ASTNode *node, VarList *vars) {
             }
             if (strcmp(node->name, "%") == 0) {
                 if (right == 0) {
-                    fprintf(stderr, "\n%s:%d:%d: error: modulo by zero\n", 
+                    fprintf(stderr, "\n%s:%d:%d: \033[1;31merror:\033[0m modulo by zero\n", 
                             current_filename, node->line, node->column);
-                    fprintf(stderr, "note: the divisor evaluated to zero\n");
-                    fprintf(stderr, "Suggested fix:\n");
+                    fprintf(stderr, "\033[1;36mnote:\033[0m the divisor evaluated to zero\n");
+                    fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n");
                     fprintf(stderr, "    if (divisor != 0) {\n");
                     fprintf(stderr, "        result = numerator %% divisor;\n");
                     fprintf(stderr, "    }\n");
@@ -1038,10 +979,10 @@ float evaluateFloatExpression(ASTNode *node, VarList *vars) {
             if (strcmp(node->name, "*") == 0) return left * right;
             if (strcmp(node->name, "/") == 0) {
                 if (right == 0.0) {
-                    fprintf(stderr, "\n%s:%d:%d: error: division by zero (float)\n", 
+                    fprintf(stderr, "\n%s:%d:%d: \033[1;31merror:\033[0m division by zero (float)\n", 
                             current_filename, node->line, node->column);
-                    fprintf(stderr, "note: the divisor evaluated to zero\n");
-                    fprintf(stderr, "Suggested fix:\n");
+                    fprintf(stderr, "\033[1;36mnote:\033[0m the divisor evaluated to zero\n");
+                    fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n");
                     fprintf(stderr, "    if (divisor != 0.0) result = numerator / divisor;\n");
                     return 0.0;
                 }
@@ -1062,18 +1003,19 @@ float evaluateFloatExpression(ASTNode *node, VarList *vars) {
 }
 
 // ============================================================================
-// INTERPRETER: STATEMENT EXECUTION
+// INTERPRETER: STATEMENT EXECUTION WITH FIXED LOOP SUPPORT
 // ============================================================================
 
 void executeStatement(ASTNode *node, VarList **vars) {
     if (!node) return;
     
     StackFrame *frame = getCurrentFrame();
+    VarList *current_vars = vars ? *vars : NULL;
     
     switch (node->type) {
         case NODE_VAR_DECL:
             if (node->child_count > 0) {
-                int val = evaluateIntExpression(node->children[0], vars ? *vars : NULL);
+                int val = evaluateIntExpression(node->children[0], current_vars);
                 setVariable(vars, node->name, node->data_type, val, 0.0);
             } else {
                 setVariable(vars, node->name, node->data_type, 0, 0.0);
@@ -1083,7 +1025,7 @@ void executeStatement(ASTNode *node, VarList **vars) {
         case NODE_ASSIGN: {
             ASTNode *id = node->children[0];
             ASTNode *expr = node->children[1];
-            int val = evaluateIntExpression(expr, vars ? *vars : NULL);
+            int val = evaluateIntExpression(expr, current_vars);
             setVariable(vars, id->name, TYPE_INT, val, 0.0);
             break;
         }
@@ -1093,14 +1035,15 @@ void executeStatement(ASTNode *node, VarList **vars) {
                 ASTNode *child = node->children[i];
                 if (child->type == NODE_ASSIGN) {
                     executeStatement(child, vars);
+                    current_vars = vars ? *vars : NULL; // Update after assignment
                 } else {
-                    evaluateIntExpression(child, vars ? *vars : NULL);
+                    evaluateIntExpression(child, current_vars);
                 }
             }
             break;
         
         case NODE_IF_STMT: {
-            int cond = evaluateIntExpression(node->children[0], vars ? *vars : NULL);
+            int cond = evaluateIntExpression(node->children[0], current_vars);
             if (cond) {
                 executeStatement(node->children[1], vars);
             } else if (node->child_count > 2) {
@@ -1110,7 +1053,11 @@ void executeStatement(ASTNode *node, VarList **vars) {
         }
         
         case NODE_WHILE_STMT: {
-            while (evaluateIntExpression(node->children[0], vars ? *vars : NULL)) {
+            while (1) {
+                current_vars = vars ? *vars : NULL;
+                int cond = evaluateIntExpression(node->children[0], current_vars);
+                if (!cond) break;
+                
                 executeStatement(node->children[1], vars);
                 if (frame && frame->return_value_set) break;
             }
@@ -1118,15 +1065,44 @@ void executeStatement(ASTNode *node, VarList **vars) {
         }
         
         case NODE_FOR_STMT: {
+            // Initialize (first child)
             executeStatement(node->children[0], vars);
             
-            while (node->children[1]->child_count > 0 && 
-                   evaluateIntExpression(node->children[1]->children[0], vars ? *vars : NULL)) {
+            // Loop: condition (second child), body (fourth child), increment (third child)
+            while (1) {
+                // Update current_vars
+                current_vars = vars ? *vars : NULL;
+                
+                // Check condition
+                int cond_result = 0;
+                if (node->children[1]->child_count > 0) {
+                    cond_result = evaluateIntExpression(node->children[1]->children[0], current_vars);
+                } else {
+                    // Empty condition means infinite loop (like for(;;))
+                    cond_result = 1;
+                }
+                
+                if (!cond_result) break;
+                
+                // Execute body
                 executeStatement(node->children[3], vars);
                 
                 if (frame && frame->return_value_set) break;
                 
-                evaluateIntExpression(node->children[2], vars ? *vars : NULL);
+                // Execute increment expression
+                current_vars = vars ? *vars : NULL;
+                if (node->children[2]->child_count > 0) {
+                    // The increment is typically an expression like i = i + 1
+                    ASTNode *incr_expr = node->children[2];
+                    if (incr_expr->child_count > 0) {
+                        ASTNode *actual_expr = incr_expr->children[0];
+                        if (actual_expr->type == NODE_ASSIGN) {
+                            executeStatement(actual_expr, vars);
+                        } else {
+                            evaluateIntExpression(actual_expr, current_vars);
+                        }
+                    }
+                }
             }
             break;
         }
@@ -1142,10 +1118,10 @@ void executeStatement(ASTNode *node, VarList **vars) {
                     for (int i = 0; i < args->child_count; i++) {
                         arg_array[i] = args->children[i];
                     }
-                    handlePrintf(format, arg_array, args->child_count, vars ? *vars : NULL);
+                    handlePrintf(format, arg_array, args->child_count, current_vars);
                     free(arg_array);
                 } else {
-                    handlePrintf(format, NULL, 0, vars ? *vars : NULL);
+                    handlePrintf(format, NULL, 0, current_vars);
                 }
             }
             break;
@@ -1177,8 +1153,7 @@ void executeStatement(ASTNode *node, VarList **vars) {
         case NODE_RETURN_STMT:
             if (frame) {
                 if (node->child_count > 0) {
-                    frame->return_value.int_val = evaluateIntExpression(node->children[0], 
-                                                                         vars ? *vars : NULL);
+                    frame->return_value.int_val = evaluateIntExpression(node->children[0], current_vars);
                 } else {
                     frame->return_value.int_val = 0;
                 }
@@ -1197,7 +1172,7 @@ void executeStatement(ASTNode *node, VarList **vars) {
 
 void interpretProgram(ASTNode *node) {
     if (!node) {
-        fprintf(stderr, "\n%s:runtime: error: no program to interpret\n", current_filename);
+        fprintf(stderr, "\n%s:runtime: \033[1;31merror:\033[0m no program to interpret\n", current_filename);
         return;
     }
     
@@ -1234,9 +1209,9 @@ void interpretProgram(ASTNode *node) {
         }
         
         if (!found_main) {
-            fprintf(stderr, "\n%s:1:1: error: no main function found\n", current_filename);
-            fprintf(stderr, "note: every program must have a main function\n");
-            fprintf(stderr, "Suggested fix:\n");
+            fprintf(stderr, "\n%s:1:1: \033[1;31merror:\033[0m no main function found\n", current_filename);
+            fprintf(stderr, "\033[1;36mnote:\033[0m every program must have a main function\n");
+            fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n");
             fprintf(stderr, "    int main() {\n");
             fprintf(stderr, "        // your code here\n");
             fprintf(stderr, "        return 0;\n");
@@ -1307,5 +1282,5 @@ DataType getExpressionType(ASTNode *node, SymbolTable *table) {
 }
 
 // ============================================================================
-// END OF COMPLETE ENHANCED COMPILER.C
+// END OF ENHANCED COMPILER.C WITH FULL LOOP SUPPORT
 // ============================================================================

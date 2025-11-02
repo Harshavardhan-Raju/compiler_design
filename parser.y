@@ -15,7 +15,19 @@ SymbolTable *global_scope = NULL;
 int error_count = 0;
 
 void yyerror(const char *s) {
-    fprintf(stderr, "%s:%d: error: %s\n", current_filename, line_num, s);
+    fprintf(stderr, "\n%s:%d:1: \033[1;31merror:\033[0m %s\n", current_filename, line_num, s);
+    fprintf(stderr, "    %s\n", s);
+    error_count++;
+}
+
+void detailed_error(const char *error_msg, const char *note, const char *fix) {
+    fprintf(stderr, "\n%s:%d:1: \033[1;31merror:\033[0m %s\n", current_filename, line_num, error_msg);
+    if (note) {
+        fprintf(stderr, "\033[1;36mnote:\033[0m %s\n", note);
+    }
+    if (fix) {
+        fprintf(stderr, "\033[1;32msuggested fix:\033[0m\n%s\n", fix);
+    }
     error_count++;
 }
 %}
@@ -95,18 +107,24 @@ var_declaration:
         free($2);
     }
     | type_specifier ID error {
-        fprintf(stderr, "%s:%d: error: expected ';' after variable declaration\n", 
-                current_filename, line_num);
-        error_count++;
+        char msg[512], note[512], fix[512];
+        snprintf(msg, sizeof(msg), "expected ';' after variable declaration");
+        snprintf(note, sizeof(note), "variable '%s' is missing semicolon terminator", $2);
+        snprintf(fix, sizeof(fix), "    %s %s;  // add semicolon here", 
+                 $1 == TYPE_INT ? "int" : ($1 == TYPE_FLOAT ? "float" : "void"), $2);
+        detailed_error(msg, note, fix);
         yyerrok;
         $$ = createNode(NODE_VAR_DECL, $2);
         $$->data_type = $1;
         free($2);
     }
     | type_specifier ID ASSIGN expr error {
-        fprintf(stderr, "%s:%d: error: expected ';' after initialization\n", 
-                current_filename, line_num);
-        error_count++;
+        char msg[512], note[512], fix[512];
+        snprintf(msg, sizeof(msg), "expected ';' after initialization");
+        snprintf(note, sizeof(note), "initialized variable '%s' is missing semicolon", $2);
+        snprintf(fix, sizeof(fix), "    %s %s = <value>;  // add semicolon at the end", 
+                 $1 == TYPE_INT ? "int" : ($1 == TYPE_FLOAT ? "float" : "void"), $2);
+        detailed_error(msg, note, fix);
         yyerrok;
         $$ = createNode(NODE_VAR_DECL, $2);
         $$->data_type = $1;
@@ -127,6 +145,21 @@ function_declaration:
         $$->data_type = $1;
         addChild($$, $4);
         addChild($$, $6);
+        free($2);
+    }
+    | type_specifier ID LPAREN params RPAREN error {
+        char msg[512], note[512], fix[512];
+        snprintf(msg, sizeof(msg), "expected function body after declaration");
+        snprintf(note, sizeof(note), "function '%s' is missing opening brace '{'", $2);
+        snprintf(fix, sizeof(fix), 
+                 "    %s %s(...) {\n        // function body\n        return 0;\n    }", 
+                 $1 == TYPE_INT ? "int" : ($1 == TYPE_FLOAT ? "float" : "void"), $2);
+        detailed_error(msg, note, fix);
+        yyerrok;
+        $$ = createNode(NODE_FUNCTION_DECL, $2);
+        $$->data_type = $1;
+        addChild($$, $4);
+        addChild($$, createNode(NODE_COMPOUND_STMT, "EmptyBlock"));
         free($2);
     }
     ;
@@ -166,6 +199,13 @@ compound_stmt:
     | LBRACE RBRACE {
         $$ = createNode(NODE_COMPOUND_STMT, "EmptyBlock");
     }
+    | LBRACE error RBRACE {
+        detailed_error("invalid statement in block", 
+                      "syntax error inside braces",
+                      "    {\n        // check for missing semicolons\n        statement;\n    }");
+        yyerrok;
+        $$ = createNode(NODE_COMPOUND_STMT, "ErrorBlock");
+    }
     ;
 
 stmt_list:
@@ -196,9 +236,9 @@ expr_stmt:
         addChild($$, $1);
     }
     | expr error {
-        fprintf(stderr, "%s:%d: error: expected ';' after expression\n", 
-                current_filename, line_num);
-        error_count++;
+        detailed_error("expected ';' after expression",
+                      "expressions must be terminated with semicolon",
+                      "    expression;  // add semicolon here");
         yyerrok;
         $$ = createNode(NODE_EXPR_STMT, "ExprStmt");
         addChild($$, $1);
@@ -220,6 +260,22 @@ selection_stmt:
         addChild($$, $5);
         addChild($$, $7);
     }
+    | IF LPAREN expr error {
+        detailed_error("expected ')' after if condition",
+                      "if statement condition is not properly closed",
+                      "    if (condition) {  // add closing parenthesis\n        statement;\n    }");
+        yyerrok;
+        $$ = createNode(NODE_IF_STMT, "If");
+        addChild($$, $3);
+        addChild($$, createNode(NODE_EXPR_STMT, "EmptyStmt"));
+    }
+    | IF error {
+        detailed_error("expected '(' after 'if'",
+                      "if keyword must be followed by opening parenthesis",
+                      "    if (condition) {\n        statement;\n    }");
+        yyerrok;
+        $$ = createNode(NODE_IF_STMT, "If");
+    }
     ;
 
 iteration_stmt:
@@ -228,12 +284,39 @@ iteration_stmt:
         addChild($$, $3);
         addChild($$, $5);
     }
+    | WHILE LPAREN expr error {
+        detailed_error("expected ')' after while condition",
+                      "while loop condition is not properly closed",
+                      "    while (condition) {  // add closing parenthesis\n        statement;\n    }");
+        yyerrok;
+        $$ = createNode(NODE_WHILE_STMT, "While");
+        addChild($$, $3);
+        addChild($$, createNode(NODE_EXPR_STMT, "EmptyStmt"));
+    }
     | FOR LPAREN expr_stmt expr_stmt expr RPAREN stmt {
         $$ = createNode(NODE_FOR_STMT, "For");
         addChild($$, $3);
         addChild($$, $4);
         addChild($$, $5);
         addChild($$, $7);
+    }
+    | FOR LPAREN expr_stmt expr_stmt expr error {
+        detailed_error("expected ')' after for loop header",
+                      "for loop is missing closing parenthesis",
+                      "    for (init; condition; increment) {  // add ')' here\n        statement;\n    }");
+        yyerrok;
+        $$ = createNode(NODE_FOR_STMT, "For");
+        addChild($$, $3);
+        addChild($$, $4);
+        addChild($$, $5);
+        addChild($$, createNode(NODE_EXPR_STMT, "EmptyStmt"));
+    }
+    | FOR error {
+        detailed_error("expected '(' after 'for'",
+                      "for keyword must be followed by opening parenthesis",
+                      "    for (init; condition; increment) {\n        statement;\n    }");
+        yyerrok;
+        $$ = createNode(NODE_FOR_STMT, "For");
     }
     ;
 
@@ -246,9 +329,9 @@ return_stmt:
         addChild($$, $2);
     }
     | RETURN expr error {
-        fprintf(stderr, "%s:%d: error: expected ';' after return statement\n", 
-                current_filename, line_num);
-        error_count++;
+        detailed_error("expected ';' after return statement",
+                      "return statement must be terminated with semicolon",
+                      "    return value;  // add semicolon here");
         yyerrok;
         $$ = createNode(NODE_RETURN_STMT, "Return");
         addChild($$, $2);
@@ -270,9 +353,9 @@ print_stmt:
         free($3);
     }
     | PRINTF LPAREN STRING COMMA arg_list RPAREN error {
-        fprintf(stderr, "%s:%d: error: expected ';' after printf statement\n", 
-                current_filename, line_num);
-        error_count++;
+        detailed_error("expected ';' after printf statement",
+                      "printf must be terminated with semicolon",
+                      "    printf(\"format\", args);  // add semicolon");
         yyerrok;
         $$ = createNode(NODE_PRINT_STMT, "Printf");
         ASTNode *fmt = createNode(NODE_IDENTIFIER, $3);
@@ -281,19 +364,37 @@ print_stmt:
         free($3);
     }
     | PRINTF LPAREN STRING RPAREN error {
-        fprintf(stderr, "%s:%d: error: expected ';' after printf statement\n", 
-                current_filename, line_num);
-        error_count++;
+        detailed_error("expected ';' after printf statement",
+                      "printf must be terminated with semicolon",
+                      "    printf(\"format\");  // add semicolon");
         yyerrok;
         $$ = createNode(NODE_PRINT_STMT, "Printf");
         ASTNode *fmt = createNode(NODE_IDENTIFIER, $3);
         addChild($$, fmt);
         free($3);
     }
+    | PRINTF error {
+        detailed_error("expected '(' after printf",
+                      "printf requires format string in parentheses",
+                      "    printf(\"format string\", args);");
+        yyerrok;
+        $$ = createNode(NODE_PRINT_STMT, "Printf");
+    }
     ;
 
 scan_stmt:
     SCANF LPAREN STRING COMMA arg_list RPAREN SEMICOLON {
+        $$ = createNode(NODE_SCAN_STMT, "Scanf");
+        ASTNode *fmt = createNode(NODE_IDENTIFIER, $3);
+        addChild($$, fmt);
+        addChild($$, $5);
+        free($3);
+    }
+    | SCANF LPAREN STRING COMMA arg_list RPAREN error {
+        detailed_error("expected ';' after scanf statement",
+                      "scanf must be terminated with semicolon",
+                      "    scanf(\"format\", &var);  // add semicolon");
+        yyerrok;
         $$ = createNode(NODE_SCAN_STMT, "Scanf");
         ASTNode *fmt = createNode(NODE_IDENTIFIER, $3);
         addChild($$, fmt);
@@ -427,6 +528,17 @@ call:
         $$ = createNode(NODE_FUNC_CALL, $1);
         ASTNode *empty_args = createNode(NODE_COMPOUND_STMT, "EmptyArgs");
         addChild($$, empty_args);
+        free($1);
+    }
+    | ID LPAREN error RPAREN {
+        char msg[512];
+        snprintf(msg, sizeof(msg), "invalid argument list for function '%s'", $1);
+        detailed_error(msg, 
+                      "check for syntax errors in function arguments",
+                      "    function(arg1, arg2);  // comma-separated arguments");
+        yyerrok;
+        $$ = createNode(NODE_FUNC_CALL, $1);
+        addChild($$, createNode(NODE_COMPOUND_STMT, "EmptyArgs"));
         free($1);
     }
     ;

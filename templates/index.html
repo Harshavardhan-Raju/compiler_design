@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyCC - C Compiler Web Interface</title>
+    <title>MyCC - C Compiler with Control Flow</title>
     <style>
         * {
             margin: 0;
@@ -19,7 +19,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             background: white;
             border-radius: 12px;
@@ -31,9 +31,6 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 20px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
 
         .header h1 {
@@ -57,24 +54,6 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-        }
-
-        .input-info {
-            background: #fef3c7;
-            border-left: 4px solid #f59e0b;
-            padding: 12px 15px;
-            border-radius: 6px;
-            font-size: 13px;
-            color: #92400e;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: start;
-            gap: 10px;
-        }
-
-        .input-info-icon {
-            font-size: 18px;
-            flex-shrink: 0;
         }
 
         .panel-title {
@@ -107,7 +86,7 @@
         }
 
         #input-box {
-            min-height: 100px;
+            min-height: 80px;
         }
 
         .button-group {
@@ -134,45 +113,14 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
-        button:active {
-            transform: translateY(0);
-        }
-
-        .btn-run {
-            background: #10b981;
-            color: white;
-        }
-
-        .btn-run:hover {
-            background: #059669;
-        }
-
-        .btn-visualize {
-            background: #3b82f6;
-            color: white;
-        }
-
-        .btn-visualize:hover {
-            background: #2563eb;
-        }
-
-        .btn-analyze {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .btn-analyze:hover {
-            background: #d97706;
-        }
-
-        .btn-clear {
-            background: #ef4444;
-            color: white;
-        }
-
-        .btn-clear:hover {
-            background: #dc2626;
-        }
+        .btn-run { background: #10b981; color: white; }
+        .btn-run:hover { background: #059669; }
+        .btn-visualize { background: #3b82f6; color: white; }
+        .btn-visualize:hover { background: #2563eb; }
+        .btn-analyze { background: #f59e0b; color: white; }
+        .btn-analyze:hover { background: #d97706; }
+        .btn-clear { background: #ef4444; color: white; }
+        .btn-clear:hover { background: #dc2626; }
 
         button:disabled {
             opacity: 0.6;
@@ -231,15 +179,11 @@
             word-wrap: break-word;
         }
 
-        .output-box.error {
-            color: #fca5a5;
-        }
+        .output-box.error { color: #fca5a5; }
+        .output-box.success { color: #86efac; }
 
-        .output-box.success {
-            color: #86efac;
-        }
-
-        .ast-container {
+        /* Control Flow Visualizer Styles */
+        .flow-container {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
@@ -249,97 +193,142 @@
             overflow-y: auto;
         }
 
-        .ast-node {
-            margin: 5px 0;
-            padding: 8px 12px;
+        .flow-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding: 10px;
             background: white;
+            border-radius: 8px;
             border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
         }
 
-        .ast-node:hover {
-            background: #f1f5f9;
-            border-color: #667eea;
+        .flow-controls button {
+            padding: 8px 16px;
+            font-size: 13px;
         }
 
-        .ast-node-header {
+        .flow-progress {
+            flex: 1;
+            margin-left: 15px;
+        }
+
+        .flow-progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .flow-progress-fill {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s ease;
+        }
+
+        .flow-progress-text {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .flow-step {
+            margin: 8px 0;
+            padding: 12px 16px;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .flow-step.current {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .flow-step.completed {
+            opacity: 0.5;
+            border-color: #d1d5db;
+        }
+
+        .flow-step.upcoming {
+            opacity: 0.3;
+        }
+
+        .flow-step-header {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+        }
+
+        .flow-step-icon {
+            font-size: 20px;
+            min-width: 24px;
+        }
+
+        .flow-step-description {
+            flex: 1;
             font-weight: 600;
+            color: #1e293b;
         }
 
-        .ast-node-toggle {
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            color: #667eea;
+        .flow-step-meta {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+            margin-left: 34px;
         }
 
-        .ast-node-type {
+        .flow-step-indicator {
+            font-size: 18px;
             color: #3b82f6;
         }
 
-        .ast-node-name {
-            color: #059669;
-            margin-left: 8px;
-        }
+        /* Step type colors */
+        .flow-step.type-function_enter { border-left: 4px solid #3b82f6; }
+        .flow-step.type-function_exit { border-left: 4px solid #60a5fa; }
+        .flow-step.type-function_call { border-left: 4px solid #10b981; }
+        .flow-step.type-function_return { border-left: 4px solid #34d399; }
+        .flow-step.type-var_decl { border-left: 4px solid #8b5cf6; }
+        .flow-step.type-assignment { border-left: 4px solid #a78bfa; }
+        .flow-step.type-condition { border-left: 4px solid #f59e0b; }
+        .flow-step.type-loop { border-left: 4px solid #ef4444; }
+        .flow-step.type-return { border-left: 4px solid #ec4899; }
+        .flow-step.type-print { border-left: 4px solid #06b6d4; }
+        .flow-step.type-warning { border-left: 4px solid #f97316; }
 
-        .ast-children {
-            margin-left: 30px;
-            margin-top: 8px;
-            border-left: 2px solid #e2e8f0;
-            padding-left: 15px;
-        }
-
-        .ast-children.collapsed {
-            display: none;
-        }
-
-        .flow-diagram {
+        .call-stack {
             background: white;
-            padding: 20px;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
+            padding: 12px;
+            margin-top: 15px;
         }
 
-        .flow-node {
-            padding: 12px 20px;
-            margin: 10px 0;
+        .call-stack-title {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .call-stack-frame {
+            padding: 8px 12px;
+            background: #f1f5f9;
             border-radius: 6px;
-            border: 2px solid #667eea;
-            background: white;
-            position: relative;
+            margin: 6px 0;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
         }
 
-        .flow-node.function {
+        .call-stack-frame.active {
             background: #dbeafe;
-            border-color: #3b82f6;
-        }
-
-        .flow-node.if {
-            background: #fef3c7;
-            border-color: #f59e0b;
-        }
-
-        .flow-node.loop {
-            background: #ddd6fe;
-            border-color: #8b5cf6;
-        }
-
-        .flow-node.return {
-            background: #dcfce7;
-            border-color: #10b981;
-        }
-
-        .flow-indent {
-            margin-left: 30px;
-            padding-left: 15px;
-            border-left: 3px solid #e2e8f0;
+            border: 1px solid #3b82f6;
+            font-weight: 600;
         }
 
         .loading {
@@ -373,38 +362,25 @@
 <body>
     <div class="container">
         <div class="header">
-            <div>
-                <h1>MyCC Compiler Interface</h1>
-                <div class="subtitle">Write, Compile, and Visualize C Code</div>
-            </div>
+            <h1>MyCC Compiler with Control Flow Visualization</h1>
+            <div class="subtitle">Write, Compile, Visualize, and Step Through C Code</div>
         </div>
 
         <div class="main-content">
             <!-- Left Panel: Code Editor -->
             <div class="editor-panel">
                 <div class="panel-title">Code Editor</div>
-                <textarea id="code-editor" placeholder="Write your C code here...&#x0a;&#x0a;Example:&#x0a;int factorial(int n) {&#x0a;    if (n <= 1) return 1;&#x0a;    return n * factorial(n - 1);&#x0a;}&#x0a;&#x0a;int main() {&#x0a;    int num;&#x0a;    printf(&quot;Enter a number: &quot;);&#x0a;    scanf(&quot;%d&quot;, &amp;num);&#x0a;    printf(&quot;Factorial: %d\n&quot;, factorial(num));&#x0a;    return 0;&#x0a;}"></textarea>
+                <textarea id="code-editor" placeholder="Write your C code here..."></textarea>
 
-                <div class="panel-title">
-                    Program Input (stdin)
-                </div>
-                
-                <div class="input-info">
-                    <span class="input-info-icon">💡</span>
-                    <div>
-                        <strong>Important:</strong> This is a web interface, so input cannot be entered interactively during program execution.
-                        <br>Please provide ALL scanf inputs here BEFORE clicking Run. Separate multiple inputs with newlines or spaces.
-                    </div>
-                </div>
-                
-                <textarea id="input-box" placeholder="Enter ALL inputs here before running...&#x0a;&#x0a;For single input: 5&#x0a;&#x0a;For multiple inputs:&#x0a;5&#x0a;10&#x0a;15&#x0a;&#x0a;Or space-separated: 5 10 15"></textarea>
+                <div class="panel-title">Program Input (stdin)</div>
+                <textarea id="input-box" placeholder="Enter inputs (one per line or space-separated)"></textarea>
 
                 <div class="button-group">
                     <button class="btn-run" onclick="runCode()">
                         <span>▶</span> Run
                     </button>
                     <button class="btn-visualize" onclick="visualizeAST()">
-                        <span>📊</span> Visualize AST
+                        <span>📊</span> Visualize Control Flow
                     </button>
                     <button class="btn-analyze" onclick="analyzeCode()">
                         <span>🔍</span> Analyze
@@ -419,11 +395,11 @@
             <div class="output-panel">
                 <div class="panel-title">Output</div>
                 <div class="tabs">
-                    <button class="tab active" onclick="switchTab('console', this)">Console</button>
-                    <button class="tab" onclick="switchTab('visualization', this)">AST Tree</button>
-                    <button class="tab" onclick="switchTab('flow', this)">Control Flow</button>
-                    <button class="tab" onclick="switchTab('analysis', this)">Analysis</button>
-                    <button class="tab" onclick="switchTab('errors', this)">Errors</button>
+                    <button class="tab active" onclick="switchTab('console')">Console</button>
+                    <button class="tab" onclick="switchTab('flow')">Control Flow</button>
+                    <button class="tab" onclick="switchTab('ast')">AST Tree</button>
+                    <button class="tab" onclick="switchTab('analysis')">Analysis</button>
+                    <button class="tab" onclick="switchTab('errors')">Errors</button>
                 </div>
 
                 <div id="console" class="tab-content active">
@@ -432,15 +408,15 @@
                     </div>
                 </div>
 
-                <div id="visualization" class="tab-content">
-                    <div id="ast-output" class="ast-container">
-                        <div class="empty-state">Click "Visualize AST" to see the abstract syntax tree</div>
+                <div id="flow" class="tab-content">
+                    <div id="flow-output" class="flow-container">
+                        <div class="empty-state">Click "Visualize Control Flow" to see execution steps</div>
                     </div>
                 </div>
 
-                <div id="flow" class="tab-content">
-                    <div id="flow-output" class="ast-container">
-                        <div class="empty-state">Control flow will appear here after visualization</div>
+                <div id="ast" class="tab-content">
+                    <div id="ast-output" class="output-box">
+                        <div class="empty-state">AST will appear here</div>
                     </div>
                 </div>
 
@@ -460,49 +436,45 @@
     </div>
 
     <script>
-        // Tab switching
-        function switchTab(tabName, clickedTab) {
+        let executionSteps = [];
+        let currentStep = 0;
+        let isPlaying = false;
+        let playInterval = null;
+
+        function switchTab(tabName) {
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.tab-content');
             
             tabs.forEach(tab => tab.classList.remove('active'));
             contents.forEach(content => content.classList.remove('active'));
             
-            // Find and activate the clicked tab
-            if (clickedTab) {
-                clickedTab.classList.add('active');
-            } else {
-                // If called programmatically, find the tab by matching text
-                tabs.forEach(tab => {
-                    if (tab.textContent.toLowerCase().includes(tabName.toLowerCase())) {
-                        tab.classList.add('active');
-                    }
-                });
-            }
+            const activeTab = Array.from(tabs).find(t => 
+                t.textContent.toLowerCase().includes(tabName.toLowerCase())
+            );
+            if (activeTab) activeTab.classList.add('active');
             
             document.getElementById(tabName).classList.add('active');
         }
 
-        // Clear all
         function clearAll() {
             if (confirm('Clear all code and output?')) {
                 document.getElementById('code-editor').value = '';
                 document.getElementById('input-box').value = '';
                 document.getElementById('console-output').innerHTML = '<div class="empty-state">Run your code to see output here</div>';
-                document.getElementById('ast-output').innerHTML = '<div class="empty-state">Click "Visualize AST" to see the abstract syntax tree</div>';
-                document.getElementById('flow-output').innerHTML = '<div class="empty-state">Control flow will appear here after visualization</div>';
+                document.getElementById('flow-output').innerHTML = '<div class="empty-state">Click "Visualize Control Flow" to see execution steps</div>';
+                document.getElementById('ast-output').innerHTML = '<div class="empty-state">AST will appear here</div>';
                 document.getElementById('analysis-output').innerHTML = '<div class="empty-state">Click "Analyze" to perform semantic analysis</div>';
                 document.getElementById('error-output').innerHTML = '<div class="empty-state">Errors will appear here</div>';
+                executionSteps = [];
+                currentStep = 0;
             }
         }
 
-        // Disable/enable buttons
         function setButtonsEnabled(enabled) {
             const buttons = document.querySelectorAll('button:not(.tab)');
             buttons.forEach(btn => btn.disabled = !enabled);
         }
 
-        // Run code
         async function runCode() {
             const code = document.getElementById('code-editor').value.trim();
             const input = document.getElementById('input-box').value;
@@ -512,22 +484,10 @@
                 return;
             }
 
-            // Check if code contains scanf but no input provided
-            if (code.includes('scanf') && !input.trim()) {
-                const proceed = confirm(
-                    '⚠️ Your code uses scanf() but no input is provided.\n\n' +
-                    'The program may use default values (0) or hang waiting for input.\n\n' +
-                    'Do you want to continue anyway?'
-                );
-                if (!proceed) return;
-            }
-
             const consoleOutput = document.getElementById('console-output');
             const errorOutput = document.getElementById('error-output');
             
             consoleOutput.innerHTML = '<div class="loading"></div> Running...';
-            errorOutput.innerHTML = '';
-            
             setButtonsEnabled(false);
 
             try {
@@ -548,21 +508,16 @@
                     consoleOutput.textContent = result.output || '(No output)';
                     errorOutput.className = 'output-box error';
                     errorOutput.textContent = result.errors || 'Unknown error';
-                    
-                    // Switch to errors tab
-                    const errorTab = document.querySelectorAll('.tab')[4]; // 5th tab (errors)
-                    switchTab('errors', errorTab);
+                    switchTab('errors');
                 }
             } catch (error) {
                 consoleOutput.className = 'output-box error';
                 consoleOutput.textContent = `Network error: ${error.message}`;
-                errorOutput.textContent = `Failed to connect to server: ${error.message}`;
             } finally {
                 setButtonsEnabled(true);
             }
         }
 
-        // Visualize AST
         async function visualizeAST() {
             const code = document.getElementById('code-editor').value.trim();
             
@@ -571,13 +526,11 @@
                 return;
             }
 
-            const astOutput = document.getElementById('ast-output');
             const flowOutput = document.getElementById('flow-output');
+            const astOutput = document.getElementById('ast-output');
             const errorOutput = document.getElementById('error-output');
             
-            astOutput.innerHTML = '<div class="loading"></div> Generating AST...';
-            flowOutput.innerHTML = '<div class="loading"></div> Analyzing control flow...';
-            
+            flowOutput.innerHTML = '<div class="loading"></div> Generating control flow...';
             setButtonsEnabled(false);
 
             try {
@@ -589,145 +542,213 @@
 
                 const result = await response.json();
                 
-                if (result.success && result.ast) {
-                    renderAST(result.ast);
-                    renderControlFlow(result.ast);
+                if (result.success) {
+                    executionSteps = result.execution_steps || [];
+                    currentStep = 0;
+                    
+                    renderControlFlow();
+                    astOutput.className = 'output-box';
+                    astOutput.textContent = JSON.stringify(result.ast, null, 2);
                     errorOutput.innerHTML = '<div class="empty-state">No errors</div>';
                     
-                    // Switch to visualization tab
-                    const vizTab = document.querySelectorAll('.tab')[1]; // 2nd tab (visualization)
-                    switchTab('visualization', vizTab);
+                    switchTab('flow');
                 } else {
-                    astOutput.innerHTML = `<div class="empty-state">Failed to generate AST</div>`;
-                    flowOutput.innerHTML = `<div class="empty-state">Failed to generate control flow</div>`;
+                    flowOutput.innerHTML = '<div class="empty-state">Failed to generate control flow</div>';
                     errorOutput.className = 'output-box error';
                     errorOutput.textContent = result.error || 'Unknown error';
-                    
-                    // Switch to errors tab
-                    const errorTab = document.querySelectorAll('.tab')[4]; // 5th tab (errors)
-                    switchTab('errors', errorTab);
+                    switchTab('errors');
                 }
             } catch (error) {
-                astOutput.innerHTML = `<div class="empty-state">Network error: ${error.message}</div>`;
-                flowOutput.innerHTML = `<div class="empty-state">Network error</div>`;
-                errorOutput.textContent = `Failed to connect to server: ${error.message}`;
+                flowOutput.innerHTML = `<div class="empty-state">Network error: ${error.message}</div>`;
             } finally {
                 setButtonsEnabled(true);
             }
         }
 
-        // Render AST tree
-        function renderAST(node, container = null) {
-            if (!container) {
-                container = document.getElementById('ast-output');
-                container.innerHTML = '';
-            }
-
-            const nodeDiv = document.createElement('div');
-            nodeDiv.className = 'ast-node';
-            
-            const header = document.createElement('div');
-            header.className = 'ast-node-header';
-            
-            const hasChildren = node.children && node.children.length > 0;
-            
-            const toggle = document.createElement('span');
-            toggle.className = 'ast-node-toggle';
-            toggle.textContent = hasChildren ? '▼' : '•';
-            
-            const type = document.createElement('span');
-            type.className = 'ast-node-type';
-            type.textContent = node.type || 'Node';
-            
-            const name = document.createElement('span');
-            name.className = 'ast-node-name';
-            if (node.name) {
-                name.textContent = `"${node.name}"`;
-            }
-            
-            header.appendChild(toggle);
-            header.appendChild(type);
-            header.appendChild(name);
-            nodeDiv.appendChild(header);
-            
-            if (hasChildren) {
-                const childrenDiv = document.createElement('div');
-                childrenDiv.className = 'ast-children';
-                
-                node.children.forEach(child => {
-                    renderAST(child, childrenDiv);
-                });
-                
-                nodeDiv.appendChild(childrenDiv);
-                
-                // Toggle collapse
-                header.onclick = (e) => {
-                    e.stopPropagation();
-                    childrenDiv.classList.toggle('collapsed');
-                    toggle.textContent = childrenDiv.classList.contains('collapsed') ? '▶' : '▼';
-                };
-            }
-            
-            container.appendChild(nodeDiv);
-        }
-
-        // Render control flow
-        function renderControlFlow(ast) {
+        function renderControlFlow() {
             const flowOutput = document.getElementById('flow-output');
             flowOutput.innerHTML = '';
-            
-            const flowDiv = document.createElement('div');
-            flowDiv.className = 'flow-diagram';
-            
-            extractControlFlow(ast, flowDiv, 0);
-            
-            flowOutput.appendChild(flowDiv);
+
+            if (executionSteps.length === 0) {
+                flowOutput.innerHTML = '<div class="empty-state">No execution steps found</div>';
+                return;
+            }
+
+            // Create controls
+            const controls = document.createElement('div');
+            controls.className = 'flow-controls';
+            controls.innerHTML = `
+                <button onclick="playFlow()" id="play-btn">
+                    <span id="play-icon">▶</span> Play
+                </button>
+                <button onclick="stepFlow(-1)" id="prev-btn">◀ Prev</button>
+                <button onclick="stepFlow(1)" id="next-btn">▶ Next</button>
+                <button onclick="resetFlow()">⟲ Reset</button>
+                <div class="flow-progress">
+                    <div class="flow-progress-bar">
+                        <div class="flow-progress-fill" id="progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="flow-progress-text" id="progress-text">
+                        Step 1 of ${executionSteps.length}
+                    </div>
+                </div>
+            `;
+            flowOutput.appendChild(controls);
+
+            // Create steps container
+            const stepsContainer = document.createElement('div');
+            stepsContainer.id = 'steps-container';
+            flowOutput.appendChild(stepsContainer);
+
+            // Create call stack display
+            const callStackDiv = document.createElement('div');
+            callStackDiv.className = 'call-stack';
+            callStackDiv.innerHTML = '<div class="call-stack-title">Call Stack</div><div id="call-stack-frames"></div>';
+            flowOutput.appendChild(callStackDiv);
+
+            renderSteps();
         }
 
-        function extractControlFlow(node, container, depth) {
-            if (!node) return;
-            
-            const indent = depth > 0 ? 'flow-indent' : '';
-            
-            // Check node type
-            if (node.type === 'FunctionDecl') {
-                const flowNode = document.createElement('div');
-                flowNode.className = `flow-node function ${indent}`;
-                flowNode.innerHTML = `<strong>Function:</strong> ${node.name || 'anonymous'}`;
-                container.appendChild(flowNode);
+        function renderSteps() {
+            const container = document.getElementById('steps-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            executionSteps.forEach((step, idx) => {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = `flow-step type-${step.type}`;
+                stepDiv.style.marginLeft = `${step.depth * 20}px`;
                 
-                if (node.children) {
-                    node.children.forEach(child => extractControlFlow(child, container, depth + 1));
+                if (idx === currentStep) {
+                    stepDiv.classList.add('current');
+                } else if (idx < currentStep) {
+                    stepDiv.classList.add('completed');
+                } else {
+                    stepDiv.classList.add('upcoming');
                 }
-            } else if (node.type === 'IfStmt') {
-                const flowNode = document.createElement('div');
-                flowNode.className = `flow-node if ${indent}`;
-                flowNode.innerHTML = `<strong>If Statement</strong> ${node.name ? `(${node.name})` : ''}`;
-                container.appendChild(flowNode);
-                
-                if (node.children) {
-                    node.children.forEach(child => extractControlFlow(child, container, depth + 1));
-                }
-            } else if (node.type === 'WhileStmt' || node.type === 'ForStmt') {
-                const flowNode = document.createElement('div');
-                flowNode.className = `flow-node loop ${indent}`;
-                flowNode.innerHTML = `<strong>${node.type === 'WhileStmt' ? 'While' : 'For'} Loop</strong> ${node.name ? `(${node.name})` : ''}`;
-                container.appendChild(flowNode);
-                
-                if (node.children) {
-                    node.children.forEach(child => extractControlFlow(child, container, depth + 1));
-                }
-            } else if (node.type === 'ReturnStmt') {
-                const flowNode = document.createElement('div');
-                flowNode.className = `flow-node return ${indent}`;
-                flowNode.innerHTML = `<strong>Return Statement</strong>`;
-                container.appendChild(flowNode);
-            } else if (node.children) {
-                node.children.forEach(child => extractControlFlow(child, container, depth));
+
+                const icon = getStepIcon(step.type);
+                const indicator = idx === currentStep ? '<span class="flow-step-indicator">→</span>' : 
+                                 idx < currentStep ? '<span class="flow-step-indicator">✓</span>' : '';
+
+                stepDiv.innerHTML = `
+                    <div class="flow-step-header">
+                        <span class="flow-step-icon">${icon}</span>
+                        <span class="flow-step-description">${step.description}</span>
+                        ${indicator}
+                    </div>
+                    <div class="flow-step-meta">Step ${idx + 1} • in ${step.function}()</div>
+                `;
+
+                container.appendChild(stepDiv);
+            });
+
+            // Update call stack
+            updateCallStack();
+            updateProgress();
+
+            // Scroll current step into view
+            const currentStepEl = container.querySelector('.flow-step.current');
+            if (currentStepEl) {
+                currentStepEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
 
-        // Analyze code
+        function updateCallStack() {
+            const framesDiv = document.getElementById('call-stack-frames');
+            if (!framesDiv) return;
+
+            const currentStack = executionSteps[currentStep]?.stack || [];
+            framesDiv.innerHTML = '';
+
+            if (currentStack.length === 0) {
+                framesDiv.innerHTML = '<div style="color: #94a3b8; font-size: 12px;">Empty</div>';
+                return;
+            }
+
+            [...currentStack].reverse().forEach((frame, idx) => {
+                const frameDiv = document.createElement('div');
+                frameDiv.className = 'call-stack-frame';
+                if (idx === 0) frameDiv.classList.add('active');
+                frameDiv.textContent = `${frame.func}() ${idx === 0 ? '← active' : ''}`;
+                framesDiv.appendChild(frameDiv);
+            });
+        }
+
+        function updateProgress() {
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            
+            if (progressFill && progressText) {
+                const percent = ((currentStep + 1) / executionSteps.length) * 100;
+                progressFill.style.width = `${percent}%`;
+                progressText.textContent = `Step ${currentStep + 1} of ${executionSteps.length}`;
+            }
+        }
+
+        function stepFlow(direction) {
+            const newStep = currentStep + direction;
+            if (newStep >= 0 && newStep < executionSteps.length) {
+                currentStep = newStep;
+                renderSteps();
+            }
+        }
+
+        function playFlow() {
+            isPlaying = !isPlaying;
+            const playBtn = document.getElementById('play-btn');
+            const playIcon = document.getElementById('play-icon');
+            
+            if (isPlaying) {
+                playIcon.textContent = '⏸';
+                playBtn.innerHTML = '<span>⏸</span> Pause';
+                playInterval = setInterval(() => {
+                    if (currentStep < executionSteps.length - 1) {
+                        currentStep++;
+                        renderSteps();
+                    } else {
+                        isPlaying = false;
+                        clearInterval(playInterval);
+                        playIcon.textContent = '▶';
+                        playBtn.innerHTML = '<span>▶</span> Play';
+                    }
+                }, 800);
+            } else {
+                clearInterval(playInterval);
+                playIcon.textContent = '▶';
+                playBtn.innerHTML = '<span>▶</span> Play';
+            }
+        }
+
+        function resetFlow() {
+            currentStep = 0;
+            isPlaying = false;
+            if (playInterval) clearInterval(playInterval);
+            const playBtn = document.getElementById('play-btn');
+            if (playBtn) playBtn.innerHTML = '<span>▶</span> Play';
+            renderSteps();
+        }
+
+        function getStepIcon(type) {
+            const icons = {
+                'function_enter': '▶',
+                'function_exit': '◀',
+                'function_call': '→',
+                'function_return': '←',
+                'var_decl': '📝',
+                'assignment': '=',
+                'condition': '❓',
+                'loop': '🔄',
+                'return': '⏎',
+                'print': '🖨',
+                'scan': '⌨',
+                'eval': '🧮',
+                'warning': '⚠️'
+            };
+            return icons[type] || '•';
+        }
+
         async function analyzeCode() {
             const code = document.getElementById('code-editor').value.trim();
             
@@ -737,10 +758,7 @@
             }
 
             const analysisOutput = document.getElementById('analysis-output');
-            const errorOutput = document.getElementById('error-output');
-            
             analysisOutput.innerHTML = '<div class="loading"></div> Analyzing...';
-            
             setButtonsEnabled(false);
 
             try {
@@ -755,25 +773,15 @@
                 if (result.success) {
                     analysisOutput.className = 'output-box success';
                     analysisOutput.textContent = result.output || 'Analysis completed successfully!';
-                    errorOutput.innerHTML = '<div class="empty-state">No errors</div>';
-                    
-                    // Switch to analysis tab
-                    const analysisTab = document.querySelectorAll('.tab')[3]; // 4th tab (analysis)
-                    switchTab('analysis', analysisTab);
+                    switchTab('analysis');
                 } else {
                     analysisOutput.className = 'output-box error';
                     analysisOutput.textContent = result.output || 'Analysis failed';
-                    errorOutput.className = 'output-box error';
-                    errorOutput.textContent = result.output || 'Analysis failed';
-                    
-                    // Switch to errors tab
-                    const errorTab = document.querySelectorAll('.tab')[4]; // 5th tab (errors)
-                    switchTab('errors', errorTab);
+                    switchTab('errors');
                 }
             } catch (error) {
                 analysisOutput.className = 'output-box error';
                 analysisOutput.textContent = `Network error: ${error.message}`;
-                errorOutput.textContent = `Failed to connect to server: ${error.message}`;
             } finally {
                 setButtonsEnabled(true);
             }
@@ -781,50 +789,18 @@
 
         // Keyboard shortcuts
         document.getElementById('code-editor').addEventListener('keydown', function(e) {
-            // Ctrl+Enter to run
             if (e.ctrlKey && e.key === 'Enter') {
                 e.preventDefault();
                 runCode();
             }
             
-            // Tab for indentation
             if (e.key === 'Tab') {
                 e.preventDefault();
                 const start = this.selectionStart;
                 const end = this.selectionEnd;
-                const value = this.value;
-                
-                this.value = value.substring(0, start) + '    ' + value.substring(end);
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
                 this.selectionStart = this.selectionEnd = start + 4;
             }
-        });
-
-        // Auto-save to localStorage (optional)
-        const editor = document.getElementById('code-editor');
-        const inputBox = document.getElementById('input-box');
-        
-        // Load saved code on page load
-        window.addEventListener('load', () => {
-            const savedCode = localStorage.getItem('mycc_code');
-            const savedInput = localStorage.getItem('mycc_input');
-            if (savedCode) editor.value = savedCode;
-            if (savedInput) inputBox.value = savedInput;
-        });
-        
-        // Save code periodically
-        let saveTimeout;
-        editor.addEventListener('input', () => {
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                localStorage.setItem('mycc_code', editor.value);
-            }, 1000);
-        });
-        
-        inputBox.addEventListener('input', () => {
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                localStorage.setItem('mycc_input', inputBox.value);
-            }, 1000);
         });
     </script>
 </body>
