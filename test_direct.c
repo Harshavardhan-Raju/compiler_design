@@ -33,3 +33,11 @@ int main() {
     printf("Factorial = %d\n", result);
     return 0;
 }
+
+// int main(){
+//     int a = 2;
+//     int b;
+//     b = 2 + "hello";
+//     printf("%d",b);
+//     return 0;
+// }
